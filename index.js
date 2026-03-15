@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
+const bcrypt = require("bcrypt");
 require("dotenv").config();
 
 const app = express();
@@ -30,22 +31,69 @@ async function run() {
     // Define your Database and Collection
     const db = client.db("cineTradeDB");
     const movieCollection = db.collection("movies");
+    const usersCollection = db.collection("users");
+
+
 
 
     // GET: Fetch all movies from the database
-    app.get('/movies', async (req, res) => {
+    app.get("/movies", async (req, res) => {
       try {
         const result = await movieCollection.find().toArray();
-        
+
         res.status(200).send(result);
       } catch (error) {
         console.error("Error fetching movies:", error);
-        res.status(500).send({ 
-          success: false, 
-          message: "Internal Server Error" 
+        res.status(500).send({
+          success: false,
+          message: "Internal Server Error",
         });
       }
     });
+
+
+
+
+    // POST : User Register Api
+    app.post("/register", async (req, res) => {
+      try {
+        const { fullName, email, password } = req.body;
+
+        if (!fullName || !email || !password) {
+          return res.status(400).json({ message: "All fields are required" });
+        }
+
+        // check if user exists
+        const existingUser = await usersCollection.findOne({ email });
+
+        if (existingUser) {
+          return res.status(400).json({ message: "User already exists" });
+        }
+
+        // Hash Password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Insert User
+        const result = await usersCollection.insertOne({
+          fullName,
+          email,
+          password: hashedPassword,
+          role: "user",
+          createdAt: new Date(),
+        });
+
+        res.status(201).json({
+          message: "User registered successfully",
+          userId: result.insertedId,
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+      }
+    });
+
+
+
 
     console.log("Successfully connected to MongoDB Atlas!");
   } catch (err) {
