@@ -12,7 +12,6 @@ require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
 
-
 /*
 --------------------------
 Middleware
@@ -29,7 +28,6 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-
 /*
 ---------------------------
 Rate limit for login 
@@ -39,9 +37,8 @@ Rate limit for login
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: "Too many login attempts. Try again later"
-})
-
+  message: "Too many login attempts. Try again later",
+});
 
 /*
 ----------------------------------
@@ -58,6 +55,28 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+
+/*
+-------------------------
+Token Generator
+-------------------------
+*/
+
+const generateToken = (user) => {
+  const accessToken = jwt.sign(
+    {
+      id: user._id,
+    },
+    process.env.ACCESS_SECRET,
+    { expiresIn: "15m" },
+  );
+
+  const refreshToken = jwt.sign({ id: user._id }, process.env.REFRESH_SECRET, {
+    expiresIn: "7d",
+  });
+
+  return { accessToken, refreshToken };
+};
 
 async function run() {
   try {
