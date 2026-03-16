@@ -240,12 +240,11 @@ async function run() {
         const tokenExists = await refreshTokenCollection.findOne({
           token: refreshToken,
         });
-        if (!tokenExists) return res.sendStatus(403); 
+        if (!tokenExists) return res.sendStatus(403);
 
         // Verify the token
         const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
 
-        
         await refreshTokenCollection.deleteOne({ token: refreshToken });
 
         const { accessToken, refreshToken: newRefreshToken } = generateToken({
@@ -261,7 +260,7 @@ async function run() {
         // Send the new refresh token as cookie
         res.cookie("refreshToken", newRefreshToken, {
           httpOnly: true,
-          secure: false, 
+          secure: false,
           sameSite: "Strict",
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
@@ -273,6 +272,26 @@ async function run() {
         res.sendStatus(403);
       }
     });
+
+    /*
+    -------------------------
+    Logout API
+    -------------------------
+    */
+
+    app.post("/logout", async (req, res) => {
+      const refreshToken = req.cookies.refreshToken;
+
+      if (refreshToken) {
+        await refreshTokenCollection.deleteOne({ token: refreshToken });
+      }
+
+      res.clearCookie("refreshToken");
+
+      response.json({ message: "Logged out successfully" });
+    });
+
+    
 
     console.log("Successfully connected to MongoDB Atlas!");
   } catch (err) {
