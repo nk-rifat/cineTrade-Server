@@ -109,6 +109,7 @@ async function run() {
     const db = client.db("cineTradeDB");
     const movieCollection = db.collection("movies");
     const usersCollection = db.collection("users");
+    const refreshTokenCollection = db.collection("refreshTokens");
 
     // GET: Fetch all movies from the database
     app.get("/movies", async (req, res) => {
@@ -125,7 +126,12 @@ async function run() {
       }
     });
 
-    // POST : User Register Api
+    /*
+    -------------------------
+    POST: Register API
+    -------------------------
+    */
+
     app.post(
       "/register",
       [
@@ -172,6 +178,53 @@ async function run() {
         }
       },
     );
+
+    /*
+    -------------------------
+    Login API
+    -------------------------
+    */
+
+    app.post("/login", loginLimiter, async (req, res) => {
+      const { email, password } = req.body;
+
+      const user = await usersCollection.findOne({ email });
+
+      if (!user) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      const passwordMatch = await bcrypt.compare(password, user.password);
+
+      if (!passwordMatch) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      const { accessToken, refreshToken } = generateToken(user);
+
+      await refreshTokenCollection.insertOne({
+        token: refreshToken,
+        userId: user._id,
+      });
+
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "Strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      res.json({
+        accessToken,
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          profilePic: user.profilePic || null,
+        },
+      });
+    });
 
     console.log("Successfully connected to MongoDB Atlas!");
   } catch (err) {
