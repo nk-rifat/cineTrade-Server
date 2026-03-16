@@ -95,10 +95,11 @@ const verifyAccessToken = (req, res, next) => {
     if (err) return res.sendStatus(403);
 
     req.user = user;
-    
+
     next();
   });
 };
+
 async function run() {
   try {
     // Connect the client to the server
@@ -125,42 +126,52 @@ async function run() {
     });
 
     // POST : User Register Api
-    app.post("/register", async (req, res) => {
-      try {
-        const { fullName, email, password } = req.body;
+    app.post(
+      "/register",
+      [
+        body("fullName").notEmpty(),
+        body("email").isEmail(),
+        body("password").isLength({ min: 8 }),
+      ],
+      async (req, res) => {
+        try {
+          const errors = validationResult(req);
 
-        if (!fullName || !email || !password) {
-          return res.status(400).json({ message: "All fields are required" });
+          if (!errors.isEmpty()) {
+            return res.status(400).json(errors);
+          }
+
+          const { fullName, email, password } = req.body;
+
+          // check if user exists
+          const existingUser = await usersCollection.findOne({ email });
+
+          if (existingUser) {
+            return res.status(400).json({ message: "Email is already exists" });
+          }
+
+          // Hash Password
+          const hashedPassword = await bcrypt.hash(password, 10);
+
+          // Insert User
+          const result = await usersCollection.insertOne({
+            fullName,
+            email,
+            password: hashedPassword,
+            role: "user",
+            createdAt: new Date(),
+          });
+
+          res.status(201).json({
+            message: "User registered successfully",
+            userId: result.insertedId,
+          });
+        } catch (err) {
+          console.error(err);
+          res.status(500).json({ message: "Server error" });
         }
-
-        // check if user exists
-        const existingUser = await usersCollection.findOne({ email });
-
-        if (existingUser) {
-          return res.status(400).json({ message: "Email is already in use" });
-        }
-
-        // Hash Password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Insert User
-        const result = await usersCollection.insertOne({
-          fullName,
-          email,
-          password: hashedPassword,
-          role: "user",
-          createdAt: new Date(),
-        });
-
-        res.status(201).json({
-          message: "User registered successfully",
-          userId: result.insertedId,
-        });
-      } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Server error" });
-      }
-    });
+      },
+    );
 
     console.log("Successfully connected to MongoDB Atlas!");
   } catch (err) {
