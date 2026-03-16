@@ -226,6 +226,54 @@ async function run() {
       });
     });
 
+    /*
+    -------------------------
+    Refresh Token API
+    -------------------------
+    */
+
+    app.post("/refresh", async (req, res) => {
+      try {
+        const refreshToken = req.cookies.refreshToken;
+        if (!refreshToken) return res.sendStatus(401);
+
+        const tokenExists = await refreshTokenCollection.findOne({
+          token: refreshToken,
+        });
+        if (!tokenExists) return res.sendStatus(403); 
+
+        // Verify the token
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
+
+        
+        await refreshTokenCollection.deleteOne({ token: refreshToken });
+
+        const { accessToken, refreshToken: newRefreshToken } = generateToken({
+          _id: decoded.id,
+        });
+
+        // Store new refresh token in DB
+        await refreshTokenCollection.insertOne({
+          token: newRefreshToken,
+          userId: decoded.id,
+        });
+
+        // Send the new refresh token as cookie
+        res.cookie("refreshToken", newRefreshToken, {
+          httpOnly: true,
+          secure: false, 
+          sameSite: "Strict",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        // Send new access token to frontend
+        res.json({ accessToken });
+      } catch (err) {
+        console.error("Error refreshing token:", err);
+        res.sendStatus(403);
+      }
+    });
+
     console.log("Successfully connected to MongoDB Atlas!");
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
