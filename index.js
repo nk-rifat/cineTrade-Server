@@ -186,44 +186,50 @@ async function run() {
     */
 
     app.post("/login", loginLimiter, async (req, res) => {
-      const { email, password } = req.body;
+      try {
+        const { email, password } = req.body;
 
-      const user = await usersCollection.findOne({ email });
+        const user = await usersCollection.findOne({ email });
 
-      if (!user) {
-        return res.status(401).json({ message: "Invalid credentials" });
+        if (!user) {
+          return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        const passwordMatch = await bcrypt.compare(password, user.password);
+
+        if (!passwordMatch) {
+          return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        const { accessToken, refreshToken } = generateToken(user);
+
+        await refreshTokenCollection.insertOne({
+          token: refreshToken,
+          userId: user._id,
+          createdAt: new Date(),
+        });
+
+        res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: false,
+          sameSite: "Lax",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        res.json({
+          accessToken,
+          user: {
+            id: user._id,
+            fullName: user.fullName,
+            email: user.email,
+            role: user.role,
+            profilePic: user.profilePic || null,
+          },
+        });
+      } catch (error) {
+        console.error("Login Error:", error);
+        res.status(500).json({ message: "Internal Server Error" });
       }
-
-      const passwordMatch = await bcrypt.compare(password, user.password);
-
-      if (!passwordMatch) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-
-      const { accessToken, refreshToken } = generateToken(user);
-
-      await refreshTokenCollection.insertOne({
-        token: refreshToken,
-        userId: user._id,
-      });
-
-      res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: false,
-        sameSite: "Strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-
-      res.json({
-        accessToken,
-        user: {
-          id: user._id,
-          fullName: user.fullName,
-          email: user.email,
-          role: user.role,
-          profilePic: user.profilePic || null,
-        },
-      });
     });
 
     /*
@@ -237,38 +243,61 @@ async function run() {
         const refreshToken = req.cookies.refreshToken;
         if (!refreshToken) return res.sendStatus(401);
 
+        // 1. Find the token first
         const tokenExists = await refreshTokenCollection.findOne({
           token: refreshToken,
         });
-        if (!tokenExists) return res.sendStatus(403);
 
-        // Verify the token
+        if (!tokenExists) {
+          console.log("Refresh token not found in database");
+          return res.sendStatus(403);
+        }
+
+        // 2. Verify and decode
         const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
 
+        // 3. convert string ID to MongoDB ObjectId for the lookup
+        const user = await usersCollection.findOne({
+          _id: new ObjectId(decoded.id),
+        });
+
+        if (!user) {
+          console.log("User not found during refresh lookup");
+          return res.sendStatus(403);
+        }
+
+        // 4. Token Rotation: Delete old, add new
         await refreshTokenCollection.deleteOne({ token: refreshToken });
 
-        const { accessToken, refreshToken: newRefreshToken } = generateToken({
-          _id: decoded.id,
-        });
+        const { accessToken, refreshToken: newRefreshToken } =
+          generateToken(user);
 
-        // Store new refresh token in DB
         await refreshTokenCollection.insertOne({
           token: newRefreshToken,
-          userId: decoded.id,
+          userId: user._id,
         });
 
-        // Send the new refresh token as cookie
+        // 5. Set the cookie
         res.cookie("refreshToken", newRefreshToken, {
           httpOnly: true,
           secure: false,
-          sameSite: "Strict",
+          sameSite: "Lax",
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        // Send new access token to frontend
-        res.json({ accessToken });
+        // 6. Send the data
+        res.json({
+          accessToken,
+          user: {
+            id: user._id,
+            fullName: user.fullName,
+            email: user.email,
+            role: user.role,
+            profilePic: user.profilePic || null,
+          },
+        });
       } catch (err) {
-        console.error("Error refreshing token:", err);
+        console.error("Refresh Route Error:", err.message);
         res.sendStatus(403);
       }
     });
@@ -280,18 +309,27 @@ async function run() {
     */
 
     app.post("/logout", async (req, res) => {
-      const refreshToken = req.cookies.refreshToken;
+      try {
+        const refreshToken = req.cookies.refreshToken;
 
-      if (refreshToken) {
-        await refreshTokenCollection.deleteOne({ token: refreshToken });
+        // 1. Remove the specific token from the Database
+        if (refreshToken) {
+          await refreshTokenCollection.deleteOne({ token: refreshToken });
+        }
+
+        // 2. Clear the cookie from the browser
+        res.clearCookie("refreshToken", {
+          httpOnly: true,
+          secure: false,
+          sameSite: "Lax",
+        });
+
+        res.status(200).json({ message: "Logged out successfully" });
+      } catch (error) {
+        console.error("Logout Error:", error);
+        res.status(500).json({ message: "Internal Server Error" });
       }
-
-      res.clearCookie("refreshToken");
-
-      response.json({ message: "Logged out successfully" });
     });
-
-    
 
     console.log("Successfully connected to MongoDB Atlas!");
   } catch (err) {
