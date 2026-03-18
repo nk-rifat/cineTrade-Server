@@ -331,6 +331,34 @@ async function run() {
       }
     });
 
+    /*
+    -------------------------
+    GET: Movie Genres API
+    -------------------------
+    */
+
+    app.get("/genres", async (req, res) => {
+      try {
+        const uniqueGenres = await movieCollection
+          .aggregate([
+            { $unwind: "$genres" }, //flatten the genres array
+            { $group: { _id: "$genres" } }, // group by each genre
+            { $sort: { _id: 1 } }, // sort alphabetically
+            { $project: { _id: 0, genre: "$_id" } },
+          ])
+          .toArray();
+
+        console.log(uniqueGenres);
+
+        const genreList = uniqueGenres.map((g) => g.genre);
+
+        res.send(genreList);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Error fetching genres" });
+      }
+    });
+
     console.log("Successfully connected to MongoDB Atlas!");
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
