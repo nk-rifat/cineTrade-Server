@@ -333,6 +333,30 @@ async function run() {
 
     /*
     -------------------------
+    GET: Movie Coming Soon API
+    -------------------------
+    */
+
+    app.get("/movies/coming-soon", async (req, res) => {
+      try {
+        const query = { release_status: "upcoming" };
+
+        const result = await movieCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .limit(6)
+          .toArray();
+
+        res.status(200).send(result);
+      } catch (error) {
+        res
+          .status(500)
+          .send({ message: "Error fetching upcoming movies", error });
+      }
+    });
+
+    /*
+    -------------------------
     GET: Movie Genres API
     -------------------------
     */
