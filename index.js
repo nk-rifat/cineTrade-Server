@@ -347,11 +347,11 @@ async function run() {
           .limit(5)
           .toArray();
 
-        res.status(200).send(result);
+        res.status(200).json(result);
       } catch (error) {
         res
           .status(500)
-          .send({ message: "Error fetching upcoming movies", error });
+          .json({ message: "Error fetching upcoming movies", error });
       }
     });
 
@@ -372,14 +372,12 @@ async function run() {
           ])
           .toArray();
 
-        console.log(uniqueGenres);
-
         const genreList = uniqueGenres.map((g) => g.genre);
 
-        res.send(genreList);
+        res.json(genreList);
       } catch (error) {
         console.error(error);
-        res.status(500).send({ message: "Error fetching genres" });
+        res.status(500).json({ message: "Error fetching genres" });
       }
     });
 
@@ -397,9 +395,35 @@ async function run() {
           .limit(10)
           .toArray();
 
-        res.send(result);
+        res.json(result);
       } catch (error) {
-        res.status(500).send({ message: "Failed to fetch popular movies" });
+        res.status(500).json({ message: "Failed to fetch popular movies" });
+      }
+    });
+
+    /*
+    -------------------------
+    GET: Movie New Release on cineTrade API
+    -------------------------
+    */
+
+    app.get("/movies/new-releases", async (req, res) => {
+      try {
+        const currentYear = new Date().getFullYear();
+
+        const newReleases = await movieCollection
+          .find({
+            release_status: "released",
+            release_year: currentYear,
+          })
+          .sort({ created_at: -1 })
+          .limit(10)
+          .toArray();
+
+        res.json(newReleases);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to fetch new release movies" });
       }
     });
 
