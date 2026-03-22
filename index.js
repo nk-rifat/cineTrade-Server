@@ -344,7 +344,7 @@ async function run() {
         const result = await movieCollection
           .find(query)
           .sort({ createdAt: -1 })
-          .limit(6)
+          .limit(5)
           .toArray();
 
         res.status(200).send(result);
@@ -380,6 +380,26 @@ async function run() {
       } catch (error) {
         console.error(error);
         res.status(500).send({ message: "Error fetching genres" });
+      }
+    });
+
+    /*
+    -------------------------
+    GET: Movie Popular on cineTrade API
+    -------------------------
+    */
+
+    app.get("/movies/popular", async (req, res) => {
+      try {
+        const result = await movieCollection
+          .find({})
+          .sort({ views: -1 })
+          .limit(10)
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch popular movies" });
       }
     });
 
