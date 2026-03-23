@@ -111,21 +111,6 @@ async function run() {
     const usersCollection = db.collection("users");
     const refreshTokenCollection = db.collection("refreshTokens");
 
-    // GET: Fetch all movies from the database
-    app.get("/movies", async (req, res) => {
-      try {
-        const result = await movieCollection.find().toArray();
-
-        res.status(200).send(result);
-      } catch (error) {
-        console.error("Error fetching movies:", error);
-        res.status(500).send({
-          success: false,
-          message: "Internal Server Error",
-        });
-      }
-    });
-
     /*
     -------------------------
     POST: Register API
@@ -331,6 +316,36 @@ async function run() {
       }
     });
 
+     /*
+    -------------------------
+    GET: All Movies by Genres API
+    -------------------------
+    */
+
+    app.get("/movies", async (req, res) => {
+      try {
+        const { genre } = req.query;
+
+        let query = {};
+
+        if (genre) {
+          query = {
+            genres: genre,
+          };
+        }
+
+        const movies = await movieCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.json(movies);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to fetch movies" });
+      }
+    });
+
     /*
     -------------------------
     GET: Movie Coming Soon API
@@ -361,7 +376,7 @@ async function run() {
     -------------------------
     */
 
-    app.get("/genres", async (req, res) => {
+    app.get("/movies/genres", async (req, res) => {
       try {
         const uniqueGenres = await movieCollection
           .aggregate([
