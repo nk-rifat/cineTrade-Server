@@ -316,7 +316,7 @@ async function run() {
       }
     });
 
-     /*
+    /*
     -------------------------
     GET: All Movies by Genres API
     -------------------------
@@ -324,24 +324,51 @@ async function run() {
 
     app.get("/movies", async (req, res) => {
       try {
-        const { genre } = req.query;
+        const { genre, sort, rating, language, year } = req.query;
 
         let query = {};
+        let sortOption = {};
 
-        if (genre) {
-          query = {
-            genres: genre,
-          };
+        if (language) {
+          query.language = { $regex: new RegExp(`^${language}$`, "i") };
         }
 
-        const movies = await movieCollection
+        if (year) {
+          query.release_year = parseInt(year);
+        }
+
+        if (rating === "high") {
+          query.rating = { $gte: 7 };
+        } else if (rating === "low") {
+          query.rating = { $lt: 7 };
+        }
+
+        if (genre) {
+          query.genres = genre;
+        }
+
+        switch (sort) {
+          case "price_asc":
+            sortOption = { price: 1 };
+            break;
+          case "price_desc":
+            sortOption = { price: -1 };
+            break;
+          case "rating_desc":
+            sortOption = { rating: -1 };
+            break;
+          case "rating_asc":
+            sortOption = { rating: 1 };
+            break;
+        }
+
+        const result = await movieCollection
           .find(query)
-          .sort({ createdAt: -1 })
+          .sort(sortOption)
           .toArray();
 
-        res.json(movies);
+        res.json(result);
       } catch (error) {
-        console.error(error);
         res.status(500).json({ message: "Failed to fetch movies" });
       }
     });
@@ -358,7 +385,7 @@ async function run() {
 
         const result = await movieCollection
           .find(query)
-          .sort({ createdAt: -1 })
+          .sort({ created_at: -1 })
           .limit(5)
           .toArray();
 
