@@ -469,6 +469,35 @@ async function run() {
       }
     });
 
+    /*
+    -------------------------
+    GET: Single Movies API
+    -------------------------
+    */
+
+    app.get("/movies/:id", async (req, res) => {
+      try {
+        const movieId = req.params.id;
+
+        if (!ObjectId.isValid(movieId)) {
+          return res.status(400).json({ message: "Invalid movie ID" });
+        }
+
+        const movie = await movieCollection.findOne({
+          _id: new ObjectId(movieId),
+        });
+
+        if (!movie) {
+          return res.status(404).json({ message: "Movie not found" });
+        }
+
+        res.status(200).json(movie);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Server error" });
+      }
+    });
+
     console.log("Successfully connected to MongoDB Atlas!");
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
