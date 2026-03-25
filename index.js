@@ -110,6 +110,7 @@ async function run() {
     const movieCollection = db.collection("movies");
     const usersCollection = db.collection("users");
     const refreshTokenCollection = db.collection("refreshTokens");
+    const partnerApplicationsCollection = db.collection("partnerApplications");
 
     /*
     -------------------------
@@ -466,6 +467,63 @@ async function run() {
       } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Failed to fetch new release movies" });
+      }
+    });
+
+    /*
+    -------------------------
+    POST: Partner Application API
+    -------------------------
+    */
+
+    app.post("/partner/apply", async (req, res) => {
+      try {
+        const { fullName, reason } = req.body;
+
+        // get user from token
+        const userId = req.decoded?.uid;
+        const email = req.decoded?.email;
+
+        console.log(userId, email);
+
+        if (!userId || !email) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        if (!fullName || !reason) {
+          return res.status(400).json({ message: "All fields are required" });
+        }
+
+        // prevent duplicate application
+        const existing = await partnerApplicationsCollection.findOne({
+          userId,
+          status: { $in: ["pending", "approved"] },
+        });
+
+        if (existing) {
+          return res.status(400).json({
+            message: "You already applied or are approved",
+          });
+        }
+
+        const application = {
+          userId,
+          email,
+          fullName,
+          reason,
+          status: "pending",
+          paymentStatus: "unpaid",
+          createdAt: new Date(),
+        };
+
+        await partnerApplicationsCollection.insertOne(application);
+
+        res.status(201).json({
+          message: "Application submitted successfully",
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Server error" });
       }
     });
 
