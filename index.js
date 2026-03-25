@@ -66,6 +66,7 @@ const generateToken = (user) => {
   const accessToken = jwt.sign(
     {
       id: user._id,
+      email: user.email,
     },
     process.env.ACCESS_SECRET,
     { expiresIn: "15m" },
@@ -91,11 +92,12 @@ const verifyAccessToken = (req, res, next) => {
 
   const token = authHeader.split(" ")[1];
 
-  jwt.verify(token, process.env.ACCESS_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-
-    req.user = user;
-
+  jwt.verify(token, process.env.ACCESS_SECRET, (err, decoded) => {
+    if (err) {
+      if (err.name === "TokenExpiredError") return res.sendStatus(401);
+      return res.sendStatus(403);
+    }
+    req.decoded = decoded;
     next();
   });
 };
@@ -476,15 +478,13 @@ async function run() {
     -------------------------
     */
 
-    app.post("/partner/apply", async (req, res) => {
+    app.post("/partner/apply", verifyAccessToken, async (req, res) => {
       try {
         const { fullName, reason } = req.body;
 
         // get user from token
-        const userId = req.decoded?.uid;
+        const userId = req.decoded?.id;
         const email = req.decoded?.email;
-
-        console.log(userId, email);
 
         if (!userId || !email) {
           return res.status(401).json({ message: "Unauthorized" });
