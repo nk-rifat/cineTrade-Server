@@ -527,6 +527,38 @@ async function run() {
       }
     });
 
+
+
+
+    /*
+    -------------------------
+    GET: Partner Application API
+    -------------------------
+    */
+
+    app.get("/partner/my-application", verifyAccessToken, async (req, res) => {
+      try {
+        const userId = req.decoded?.id;
+
+        if (!userId) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const application = await partnerApplicationsCollection.findOne({
+          userId,
+        });
+
+        if (!application) {
+          return res.status(200).json(null);
+        }
+
+        res.status(200).json(application);
+      } catch (error) {
+        console.error("Error fetching application:", error);
+        res.status(500).json({ message: "Server error" });
+      }
+    });
+
     /*
     -------------------------
     GET: Single Movies API
