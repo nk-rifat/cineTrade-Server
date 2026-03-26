@@ -153,6 +153,7 @@ async function run() {
             email,
             password: hashedPassword,
             role: "user",
+            status: 'active',
             createdAt: new Date(),
           });
 
