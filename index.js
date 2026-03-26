@@ -153,7 +153,7 @@ async function run() {
             email,
             password: hashedPassword,
             role: "user",
-            status: 'active',
+            status: "active",
             createdAt: new Date(),
           });
 
@@ -371,6 +371,59 @@ async function run() {
         });
       }
     });
+
+
+
+    /*
+    -------------------------
+    PATCH: Update single User Status API
+    -------------------------
+    */
+
+    app.patch(
+      "/users/:id",
+      verifyAccessToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const { role, status } = req.body;
+          const filter = { _id: new ObjectId(id) };
+
+          if (req.user?.id === id) {
+            return res.status(403).json({
+              success: false,
+              message: "You cannot modify your own administrative permissions.",
+            });
+          }
+
+          const updateDoc = {
+            $set: {},
+          };
+
+          if (role) updateDoc.$set.role = role;
+          if (status) updateDoc.$set.status = status;
+
+          const result = await usersCollection.updateOne(filter, updateDoc);
+
+          if (result.matchedCount === 0) {
+            return res
+              .status(404)
+              .json({ success: false, message: "User not found" });
+          }
+
+          res.status(200).json({
+            success: true,
+            message: "User updated successfully",
+          });
+        } catch (error) {
+          res.status(500).json({
+            success: false,
+            message: error.message || "Failed to update user",
+          });
+        }
+      },
+    );
 
     /*
     -------------------------
