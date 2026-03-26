@@ -79,29 +79,6 @@ const generateToken = (user) => {
   return { accessToken, refreshToken };
 };
 
-/*
--------------------------
-Verify Access Token
--------------------------
-*/
-
-const verifyAccessToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader) return res.sendStatus(401);
-
-  const token = authHeader.split(" ")[1];
-
-  jwt.verify(token, process.env.ACCESS_SECRET, (err, decoded) => {
-    if (err) {
-      if (err.name === "TokenExpiredError") return res.sendStatus(401);
-      return res.sendStatus(403);
-    }
-    req.decoded = decoded;
-    next();
-  });
-};
-
 async function run() {
   try {
     // Connect the client to the server
@@ -183,7 +160,11 @@ async function run() {
         if (!user) {
           return res.status(401).json({ message: "Invalid credentials" });
         }
-
+        if (user.status === "banned") {
+          return res
+            .status(403)
+            .json({ message: "This account has been suspended." });
+        }
         const passwordMatch = await bcrypt.compare(password, user.password);
 
         if (!passwordMatch) {
@@ -255,6 +236,12 @@ async function run() {
           return res.sendStatus(403);
         }
 
+        // if user banned
+        if (user.status === "banned") {
+          await refreshTokenCollection.deleteMany({ userId: user._id });
+          return res.status(403).json({ message: "Account suspended." });
+        }
+
         // 4. Token Rotation: Delete old, add new
         await refreshTokenCollection.deleteOne({ token: refreshToken });
 
@@ -303,7 +290,16 @@ async function run() {
 
         // 1. Remove the specific token from the Database
         if (refreshToken) {
-          await refreshTokenCollection.deleteOne({ token: refreshToken });
+          const tokenDoc = await refreshTokenCollection.findOne({
+            token: refreshToken,
+          });
+
+          if (tokenDoc) {
+            // 2. Delete ALL tokens where userId matches this token's owner
+            await refreshTokenCollection.deleteMany({
+              userId: tokenDoc.userId,
+            });
+          }
         }
 
         // 2. Clear the cookie from the browser
@@ -319,6 +315,54 @@ async function run() {
         res.status(500).json({ message: "Internal Server Error" });
       }
     });
+
+    /*
+    -------------------------
+    Verify Access Token
+    -------------------------
+    */
+
+    const verifyAccessToken = (req, res, next) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) return res.sendStatus(401);
+
+      const token = authHeader.split(" ")[1];
+
+      jwt.verify(token, process.env.ACCESS_SECRET, async (err, decoded) => {
+        if (err) {
+          if (err.name === "TokenExpiredError")
+            return res.status(401).send({ message: "Expired" });
+          return res.sendStatus(403);
+        }
+
+        try {
+          if (!usersCollection) {
+            return res
+              .status(500)
+              .send({ message: "Database not initialized" });
+          }
+
+          const user = await usersCollection.findOne({
+            _id: new ObjectId(decoded.id),
+          });
+
+          if (!user) {
+            return res.status(404).send({ message: "User not found" });
+          }
+
+          if (user.status === "banned") {
+            return res.status(403).json({ message: "Account suspended" });
+          }
+
+          req.decoded = decoded;
+
+          next();
+        } catch (error) {
+          console.error("Middleware Error:", error);
+          res.status(500).send("Internal Server Error");
+        }
+      });
+    };
 
     /*
     -------------------------
@@ -371,8 +415,6 @@ async function run() {
         });
       }
     });
-
-
 
     /*
     -------------------------
