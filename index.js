@@ -102,36 +102,6 @@ const verifyAccessToken = (req, res, next) => {
   });
 };
 
-/*
--------------------------
-Verify Admin
--------------------------
-*/
-
-const verifyAdmin = async (req, res, next) => {
-  try {
-    const email = req.decoded?.email;
-
-    if (!email) {
-      return res.status(401).send({ message: "Unauthorized access" });
-    }
-
-    const user = await userCollection.findOne({ email });
-
-    if (!user) {
-      return res.status(404).send({ message: "User not found" });
-    }
-
-    if (user.role !== "admin") {
-      return res.status(403).json({ message: "Forbidden: Admin only" });
-    }
-
-    next();
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
 async function run() {
   try {
     // Connect the client to the server
@@ -349,6 +319,35 @@ async function run() {
       }
     });
 
+    /*
+    -------------------------
+    Verify Admin
+    -------------------------
+    */
+
+    const verifyAdmin = async (req, res, next) => {
+      try {
+        const email = req.decoded?.email;
+
+        if (!email) {
+          return res.status(401).send({ message: "Unauthorized access" });
+        }
+
+        const user = await usersCollection.findOne({ email });
+
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
+
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Forbidden: Admin only" });
+        }
+
+        next();
+      } catch (error) {
+        res.status(500).json({ message: "Server error" });
+      }
+    };
 
     /*
     -------------------------
