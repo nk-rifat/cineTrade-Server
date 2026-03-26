@@ -132,7 +132,6 @@ const verifyAdmin = async (req, res, next) => {
   }
 };
 
-
 async function run() {
   try {
     // Connect the client to the server
@@ -347,6 +346,29 @@ async function run() {
       } catch (error) {
         console.error("Logout Error:", error);
         res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+
+
+    /*
+    -------------------------
+    GET: All users API
+    -------------------------
+    */
+
+    app.get("/users", verifyAccessToken, verifyAdmin, async (req, res) => {
+      try {
+        const users = await usersCollection.find().toArray();
+
+        res.status(200).json({
+          success: true,
+          data: users,
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch users",
+        });
       }
     });
 
