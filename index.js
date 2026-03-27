@@ -418,57 +418,6 @@ async function run() {
 
     /*
     -------------------------
-    PATCH: Update single User Status API
-    -------------------------
-    */
-
-    app.patch(
-      "/users/:id",
-      verifyAccessToken,
-      verifyAdmin,
-      async (req, res) => {
-        try {
-          const id = req.params.id;
-          const { role, status } = req.body;
-          const filter = { _id: new ObjectId(id) };
-
-          if (req.user?.id === id) {
-            return res.status(403).json({
-              success: false,
-              message: "You cannot modify your own administrative permissions.",
-            });
-          }
-
-          const updateDoc = {
-            $set: {},
-          };
-
-          if (role) updateDoc.$set.role = role;
-          if (status) updateDoc.$set.status = status;
-
-          const result = await usersCollection.updateOne(filter, updateDoc);
-
-          if (result.matchedCount === 0) {
-            return res
-              .status(404)
-              .json({ success: false, message: "User not found" });
-          }
-
-          res.status(200).json({
-            success: true,
-            message: "User updated successfully",
-          });
-        } catch (error) {
-          res.status(500).json({
-            success: false,
-            message: error.message || "Failed to update user",
-          });
-        }
-      },
-    );
-
-    /*
-    -------------------------
     GET: All Movies by Genres API
     -------------------------
     */
@@ -622,7 +571,7 @@ async function run() {
 
     /*
     -------------------------
-    POST: Partner Application API
+    POST: Partner Apply API
     -------------------------
     */
 
@@ -661,7 +610,7 @@ async function run() {
           reason,
           status: "pending",
           paymentStatus: "unpaid",
-          createdAt: new Date(),
+          applied_at: new Date(),
         };
 
         await partnerApplicationsCollection.insertOne(application);
@@ -677,7 +626,7 @@ async function run() {
 
     /*
     -------------------------
-    GET: Partner Application API
+    GET: My Application API
     -------------------------
     */
 
@@ -703,6 +652,85 @@ async function run() {
         res.status(500).json({ message: "Server error" });
       }
     });
+
+    /*
+    -------------------------
+    GET: All partner application API
+    -------------------------
+    */
+
+    app.get(
+      "/partner-applications",
+      verifyAccessToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          // If it passed the two middlewares above, we don't need an extra 'if' check here
+          const result = await partnerApplicationsCollection
+            .find()
+            .sort({ applied_at: -1 })
+            .toArray();
+
+          res.status(200).json({
+            success: true,
+            data: result,
+          });
+        } catch (error) {
+          res.status(500).json({ success: false, message: error.message });
+        }
+      },
+    );
+
+    /*
+    -------------------------
+    PATCH: Update single User Status API
+    -------------------------
+    */
+
+    app.patch(
+      "/users/:id",
+      verifyAccessToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const { role, status } = req.body;
+          const filter = { _id: new ObjectId(id) };
+
+          if (req.user?.id === id) {
+            return res.status(403).json({
+              success: false,
+              message: "You cannot modify your own administrative permissions.",
+            });
+          }
+
+          const updateDoc = {
+            $set: {},
+          };
+
+          if (role) updateDoc.$set.role = role;
+          if (status) updateDoc.$set.status = status;
+
+          const result = await usersCollection.updateOne(filter, updateDoc);
+
+          if (result.matchedCount === 0) {
+            return res
+              .status(404)
+              .json({ success: false, message: "User not found" });
+          }
+
+          res.status(200).json({
+            success: true,
+            message: "User updated successfully",
+          });
+        } catch (error) {
+          res.status(500).json({
+            success: false,
+            message: error.message || "Failed to update user",
+          });
+        }
+      },
+    );
 
     /*
     -------------------------
