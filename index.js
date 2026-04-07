@@ -9,6 +9,9 @@ const { body, validationResult } = require("express-validator");
 const bcrypt = require("bcrypt");
 require("dotenv").config();
 
+const Stripe = require("stripe");
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -677,6 +680,46 @@ async function run() {
           });
         } catch (error) {
           res.status(500).json({ success: false, message: error.message });
+        }
+      },
+    );
+
+    /*
+    -------------------------
+    PATCH: single User admin approved API
+    -------------------------
+    */
+    app.patch(
+      "/approve-application/:id",
+      verifyAccessToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+
+        try {
+          const filter = { _id: new ObjectId(id) };
+          const updateDoc = {
+            $set: { status: "approved" },
+          };
+
+          const result = await partnerApplicationsCollection.updateOne(
+            filter,
+            updateDoc,
+          );
+
+          if (result.modifiedCount > 0) {
+            res.json({
+              success: true,
+              message: "Application approved! User can now pay.",
+            });
+          } else {
+            res
+              .status(404)
+              .json({ success: false, message: "Application not found" });
+          }
+        } catch (error) {
+          console.error("Approve Error:", error);
+          res.json(500).send({ message: "Internal Server Error" });
         }
       },
     );
