@@ -93,6 +93,7 @@ async function run() {
     const usersCollection = db.collection("users");
     const refreshTokenCollection = db.collection("refreshTokens");
     const partnerApplicationsCollection = db.collection("partnerApplications");
+    const paymentsCollection = db.collection("paymentCollections");
 
     /*
     -------------------------
@@ -814,7 +815,7 @@ async function run() {
       try {
         const { price } = req.body;
 
-        const amount = parseInt(price * 100); // stripe uses cents
+        const amount = parseInt(price * 100);
 
         const paymentIntent = await stripe.paymentIntents.create({
           amount: amount,
@@ -829,6 +830,42 @@ async function run() {
         console.error(error);
         res.status(500).json({ error: "Payment Intent failed" });
       }
+    });
+
+    /*
+    -------------------------
+    POST: Store payment details and update user role
+    -------------------------
+    */
+
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+
+      const result = await paymentsCollection.insertOne(payment);
+
+      // update the partnerApplication
+      if (payment.type === "partner") {
+        await partnerApplicationsCollection.updateOne(
+          { _id: new ObjectId(payment?.referenceId) },
+          {
+            $set: {
+              paymentStatus: "paid",
+              transactionId: payment?.transactionId,
+            },
+          },
+        );
+
+        // promote user
+        await usersCollection.updateOne(
+          { email: payment.email },
+          { $set: { role: "partner" } },
+        );
+      }
+
+      res.json({
+        success: true,
+        insertedId: result.insertedId,
+      });
     });
 
     console.log("Successfully connected to MongoDB Atlas!");
