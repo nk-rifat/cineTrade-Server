@@ -807,18 +807,49 @@ async function run() {
 
     /*
     -------------------------
+    GET: single Application API for payment
+    -------------------------
+    */
+
+    app.get(
+      "/partner/applications/:id",
+      verifyAccessToken,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const userId = req.decoded?.id;
+
+          const application = await partnerApplicationsCollection.findOne({
+            _id: new ObjectId(id),
+            userId,
+          });
+
+          if (!application) {
+            return res.status(404).json({ message: "Not found" });
+          }
+
+          res.json(application);
+        } catch (error) {
+          console.error(error);
+          res.status(500).json({ message: "Server error" });
+        }
+      },
+    );
+
+    /*
+    -------------------------
     POST: Make Payment Intent API
     -------------------------
     */
 
-    app.post("/create-payment-intent", verifyToken, async (req, res) => {
+    app.post("/create-payment-intent", verifyAccessToken, async (req, res) => {
       try {
-        const { price } = req.body;
+        const { amount } = req.body;
 
-        const amount = parseInt(price * 100);
+        const parsedAmount = Number(amount);
 
         const paymentIntent = await stripe.paymentIntents.create({
-          amount: amount,
+          amount: Math.round(parsedAmount * 100),
           currency: "usd",
           payment_method_types: ["card"],
         });
