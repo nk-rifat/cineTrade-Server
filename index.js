@@ -804,6 +804,33 @@ async function run() {
       }
     });
 
+    /*
+    -------------------------
+    POST: Make Payment Intent API
+    -------------------------
+    */
+
+    app.post("/create-payment-intent", verifyToken, async (req, res) => {
+      try {
+        const { price } = req.body;
+
+        const amount = parseInt(price * 100); // stripe uses cents
+
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+
+        res.json({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Payment Intent failed" });
+      }
+    });
+
     console.log("Successfully connected to MongoDB Atlas!");
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
