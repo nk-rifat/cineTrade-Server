@@ -887,6 +887,42 @@ async function run() {
 
       const result = await paymentsCollection.insertOne(payment);
 
+      const application = await partnerApplicationsCollection.findOne({
+        _id: new ObjectId(payment?.referenceId),
+      });
+
+      // If application not found
+      if (!application) {
+        return res.status(404).json({
+          success: false,
+          message: "Application not found",
+        });
+      }
+
+      // BLOCK if application not approved
+      if (application.status !== "approved") {
+        return res.status(403).json({
+          success: false,
+          message: "Payment not allowed. Application not approved.",
+        });
+      }
+
+      // Prevent double payment
+      if (application.paymentStatus === "paid") {
+        return res.json({
+          success: false,
+          message: "Already paid",
+        });
+      }
+
+      // check user ownership
+      if (application.email !== payment.email) {
+        return res.status(403).send({
+          success: false,
+          message: "Unauthorized user",
+        });
+      }
+
       // update the partnerApplication
       if (payment.type === "partner") {
         await partnerApplicationsCollection.updateOne(
