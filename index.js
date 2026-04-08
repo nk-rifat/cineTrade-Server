@@ -691,16 +691,17 @@ async function run() {
     -------------------------
     */
     app.patch(
-      "/approve-application/:id",
+      "/application-update-status/:id",
       verifyAccessToken,
       verifyAdmin,
       async (req, res) => {
         const id = req.params.id;
+        const { status } = req.body;
 
         try {
           const filter = { _id: new ObjectId(id) };
           const updateDoc = {
-            $set: { status: "approved" },
+            $set: { status },
           };
 
           const result = await partnerApplicationsCollection.updateOne(
