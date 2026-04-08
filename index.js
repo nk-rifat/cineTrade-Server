@@ -845,12 +845,12 @@ async function run() {
 
     app.post("/create-payment-intent", verifyAccessToken, async (req, res) => {
       try {
-        const { amount, applicationId } = req.body;
+        const { amount, referenceId } = req.body;
 
         const parsedAmount = Number(amount);
 
         const application = await partnerApplicationsCollection.findOne({
-          _id: new ObjectId(applicationId),
+          _id: new ObjectId(referenceId),
         });
 
         //BLOCK if not approved
@@ -884,8 +884,6 @@ async function run() {
 
     app.post("/payments", async (req, res) => {
       const payment = req.body;
-
-      const result = await paymentsCollection.insertOne(payment);
 
       const application = await partnerApplicationsCollection.findOne({
         _id: new ObjectId(payment?.referenceId),
@@ -922,6 +920,8 @@ async function run() {
           message: "Unauthorized user",
         });
       }
+
+      const result = await paymentsCollection.insertOne(payment);
 
       // update the partnerApplication
       if (payment.type === "partner") {
