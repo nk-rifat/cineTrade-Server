@@ -845,9 +845,21 @@ async function run() {
 
     app.post("/create-payment-intent", verifyAccessToken, async (req, res) => {
       try {
-        const { amount } = req.body;
+        const { amount, applicationId } = req.body;
 
         const parsedAmount = Number(amount);
+
+        const application = await partnerApplicationsCollection.findOne({
+          _id: new ObjectId(applicationId),
+        });
+
+        //BLOCK if not approved
+        if (!application || application.status !== "approved") {
+          return res.status(403).send({
+            success: false,
+            message: "Payment not allowed. Application not approved.",
+          });
+        }
 
         const paymentIntent = await stripe.paymentIntents.create({
           amount: Math.round(parsedAmount * 100),
