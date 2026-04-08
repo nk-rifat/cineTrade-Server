@@ -891,9 +891,9 @@ async function run() {
 
       // If application not found
       if (!application) {
-        return res.status(404).json({
+        return res.status(403).json({
           success: false,
-          message: "Application not found",
+          message: "Payment not allowed",
         });
       }
 
@@ -905,19 +905,30 @@ async function run() {
         });
       }
 
-      // Prevent double payment
-      if (application.paymentStatus === "paid") {
-        return res.json({
-          success: false,
-          message: "Already paid",
-        });
-      }
-
       // check user ownership
       if (application.email !== payment.email) {
         return res.status(403).send({
           success: false,
           message: "Unauthorized user",
+        });
+      }
+      //Prevent duplicate payment
+      const existingPayment = await paymentsCollection.findOne({
+        referenceId: payment.referenceId,
+        email: payment.email,
+      });
+
+      if (existingPayment) {
+        return res.status(409).json({
+          success: false,
+          message: "Payment already exists",
+        });
+      }
+
+      if (application.paymentStatus === "paid") {
+        return res.status(409).json({
+          success: false,
+          message: "Already paid",
         });
       }
 
