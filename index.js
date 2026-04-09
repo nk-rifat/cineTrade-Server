@@ -839,6 +839,27 @@ async function run() {
 
     /*
     -------------------------
+    PATCH: Api for increase views in details page visit 
+    -------------------------
+    */
+
+    app.patch("/movies/:id/view", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await movieCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $inc: { views: 1 } },
+        );
+
+        res.json({ success: true, result });
+      } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    /*
+    -------------------------
     POST: Make Payment Intent API
     -------------------------
     */
