@@ -847,6 +847,16 @@ async function run() {
       try {
         const id = req.params.id;
 
+        const { role } = req.body;
+
+        // block admin & partner
+        if (role === "admin" || role === "partner") {
+          return res.json({
+            success: true,
+            message: "View not counted",
+          });
+        }
+
         const result = await movieCollection.updateOne(
           { _id: new ObjectId(id) },
           { $inc: { views: 1 } },
