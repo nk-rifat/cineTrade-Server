@@ -916,9 +916,24 @@ async function run() {
     app.post("/payments", async (req, res) => {
       const payment = req.body;
 
-      const application = await partnerApplicationsCollection.findOne({
-        _id: new ObjectId(payment?.referenceId),
+      // Prevent duplicate payment for user and partner
+      const existingPayment = await paymentsCollection.findOne({
+        referenceId: payment.referenceId,
+        email: payment.email,
       });
+
+      if (existingPayment) {
+        return res.status(409).json({
+          success: false,
+          message: "Payment already exists",
+        });
+      }
+
+      if (payment?.type === "partner") {
+        const application = await partnerApplicationsCollection.findOne({
+          _id: new ObjectId(payment?.referenceId),
+        });
+      }
 
       // If application not found
       if (!application) {
@@ -941,18 +956,6 @@ async function run() {
         return res.status(403).send({
           success: false,
           message: "Unauthorized user",
-        });
-      }
-      //Prevent duplicate payment
-      const existingPayment = await paymentsCollection.findOne({
-        referenceId: payment.referenceId,
-        email: payment.email,
-      });
-
-      if (existingPayment) {
-        return res.status(409).json({
-          success: false,
-          message: "Payment already exists",
         });
       }
 
@@ -988,6 +991,9 @@ async function run() {
         success: true,
         insertedId: result.insertedId,
       });
+
+
+      
     });
 
     console.log("Successfully connected to MongoDB Atlas!");
