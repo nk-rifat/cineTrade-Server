@@ -913,13 +913,13 @@ async function run() {
     -------------------------
     */
 
-    app.post("/payments", async (req, res) => {
+    app.post("/payments",verifyAccessToken, async (req, res) => {
       const payment = req.body;
 
       // Prevent duplicate payment for user and partner
       const existingPayment = await paymentsCollection.findOne({
         referenceId: payment.referenceId,
-        email: payment.email,
+        email: req.decoded.email,
       });
 
       if (existingPayment) {
@@ -929,47 +929,50 @@ async function run() {
         });
       }
 
+      // ---------------------
+      // Partner PAYMENT LOGIC
+      // ---------------------
+
       if (payment?.type === "partner") {
         const application = await partnerApplicationsCollection.findOne({
           _id: new ObjectId(payment?.referenceId),
         });
-      }
 
-      // If application not found
-      if (!application) {
-        return res.status(403).json({
-          success: false,
-          message: "Payment not allowed",
-        });
-      }
+        // If application not found
+        if (!application) {
+          return res.status(403).json({
+            success: false,
+            message: "Payment not allowed",
+          });
+        }
 
-      // BLOCK if application not approved
-      if (application.status !== "approved") {
-        return res.status(403).json({
-          success: false,
-          message: "Payment not allowed. Application not approved.",
-        });
-      }
+        // BLOCK if application not approved
+        if (application.status !== "approved") {
+          return res.status(403).json({
+            success: false,
+            message: "Payment not allowed. Application not approved.",
+          });
+        }
 
-      // check user ownership
-      if (application.email !== payment.email) {
-        return res.status(403).send({
-          success: false,
-          message: "Unauthorized user",
-        });
-      }
+        // check user ownership
+        if (application.email !== payment.email) {
+          return res.status(403).send({
+            success: false,
+            message: "Unauthorized user",
+          });
+        }
 
-      if (application.paymentStatus === "paid") {
-        return res.status(409).json({
-          success: false,
-          message: "Already paid",
-        });
-      }
+        if (application.paymentStatus === "paid") {
+          return res.status(409).json({
+            success: false,
+            message: "Already paid",
+          });
+        }
 
-      const result = await paymentsCollection.insertOne(payment);
+        const result = await paymentsCollection.insertOne(payment);
 
-      // update the partnerApplication
-      if (payment.type === "partner") {
+        // update the partnerApplication
+
         await partnerApplicationsCollection.updateOne(
           { _id: new ObjectId(payment?.referenceId) },
           {
@@ -985,15 +988,61 @@ async function run() {
           { email: payment.email },
           { $set: { role: "partner" } },
         );
+
+        return res.json({
+          success: true,
+          insertedId: result.insertedId,
+        });
       }
 
-      res.json({
-        success: true,
-        insertedId: result.insertedId,
+      // ---------------------
+      // MOVIE PAYMENT LOGIC
+      // ---------------------
+      if (payment.type === "movie") {
+        const movie = await movieCollection.findOne({
+          _id: new ObjectId(payment.referenceId),
+        });
+
+        // check movie exists
+        if (!movie) {
+          return res.status(404).json({
+            success: false,
+            message: "Movie not found",
+          });
+        }
+
+        // Prevent buying same movie twice
+        const user = await usersCollection.findOne({
+          email: payment.email,
+        });
+
+        if (user?.purchasedMovies?.includes(payment.referenceId)) {
+          return res.status(409).json({
+            success: false,
+            message: "Movie already purchased",
+          });
+        }
+
+        const result = await paymentsCollection.insertOne(payment);
+
+        // Save purchased movie
+        await usersCollection.updateOne(
+          { email: payment.email },
+          {
+            $addToSet: { purchasedMovies: payment.referenceId },
+          },
+        );
+
+        return res.json({
+          success: true,
+          insertedId: result.insertedId,
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment type",
       });
-
-
-      
     });
 
     console.log("Successfully connected to MongoDB Atlas!");
