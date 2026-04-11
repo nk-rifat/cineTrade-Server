@@ -879,28 +879,52 @@ async function run() {
         const { amount, referenceId } = req.body;
 
         const parsedAmount = Number(amount);
+        
+
+        let isValid = false;
 
         const application = await partnerApplicationsCollection.findOne({
           _id: new ObjectId(referenceId),
         });
 
         //BLOCK if not approved
-        if (!application || application.status !== "approved") {
-          return res.status(403).send({
-            success: false,
-            message: "Payment not allowed. Application not approved.",
-          });
+        if (application) {
+          if (application.status !== "approved") {
+            return res.status(403).send({
+              success: false,
+              message: "Application not approved.",
+            });
+          }
+          isValid = true;
         }
 
-        const paymentIntent = await stripe.paymentIntents.create({
-          amount: Math.round(parsedAmount * 100),
-          currency: "usd",
-          payment_method_types: ["card"],
-        });
+        // If not application, check if it's a movie
+        if (!application) {
+          const movie = await movieCollection.findOne({
+            _id: new ObjectId(referenceId),
+          });
 
-        res.json({
-          clientSecret: paymentIntent.client_secret,
-        });
+          if (!movie) {
+            return res.status(404).send({
+              success: false,
+              message: "Invalid reference ID",
+            });
+          }
+
+          isValid = true;
+        }
+
+        if (isValid) {
+          const paymentIntent = await stripe.paymentIntents.create({
+            amount: Math.round(parsedAmount * 100),
+            currency: "usd",
+            payment_method_types: ["card"],
+          });
+
+          return res.json({
+            clientSecret: paymentIntent.client_secret,
+          });
+        }
       } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Payment Intent failed" });
@@ -913,7 +937,7 @@ async function run() {
     -------------------------
     */
 
-    app.post("/payments",verifyAccessToken, async (req, res) => {
+    app.post("/payments", verifyAccessToken, async (req, res) => {
       const payment = req.body;
 
       // Prevent duplicate payment for user and partner
