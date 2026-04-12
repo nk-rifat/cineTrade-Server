@@ -575,6 +575,40 @@ async function run() {
 
     /*
     -------------------------
+    GET: Profile details
+    -------------------------
+    */
+
+    app.get("/users/me", verifyAccessToken, async (req, res) => {
+      try {
+        const email = req?.decoded?.email;
+
+        const user = await usersCollection.findOne({ email });
+
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+
+        res.json({
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          profilePic: user.profilePic,
+          purchasedMovies: user.purchasedMovies ?? [],
+        });
+      } catch (error) {
+        console.error("Error", error);
+
+        res.status(500).json({
+          message: "Internal Server Error",
+          error: error.message,
+        });
+      }
+    });
+
+    /*
+    -------------------------
     POST: Partner Apply API
     -------------------------
     */
@@ -879,7 +913,6 @@ async function run() {
         const { amount, referenceId } = req.body;
 
         const parsedAmount = Number(amount);
-        
 
         let isValid = false;
 
