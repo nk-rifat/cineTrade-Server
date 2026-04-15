@@ -804,7 +804,7 @@ async function run() {
     */
 
     app.patch(
-      "/users/:id",
+      "/admin/manage-user/:id",
       verifyAccessToken,
       verifyAdmin,
       async (req, res) => {
@@ -938,6 +938,66 @@ async function run() {
         res.status(500).json({ success: false, error: error.message });
       }
     });
+
+    /*
+    -------------------------
+    PATCH: update user name and profile pic 
+    -------------------------
+    */
+
+    app.patch(
+      "/users/update-profile/:id",
+      verifyAccessToken,
+      async (req, res) => {
+        try {
+          const idFromURL = req.params.id;
+          const idFromToken = req.decoded?.id; // 
+
+          // Ensure the person logged in is the same person being updated
+          if (idFromURL !== idFromToken) {
+            return res.status(403).json({
+              success: false,
+              message: "Forbidden: You can only update your own profile.",
+            });
+          }
+
+          const { fullName, profilePic } = req.body;
+
+          // 2. Database Update Logic
+          const filter = { _id: new ObjectId(idFromURL) };
+          const updateDoc = {
+            $set: {
+              fullName: fullName,
+              profilePic: profilePic,
+            },
+          };
+
+          const result = await usersCollection.updateOne(filter, updateDoc);
+
+          if (result.matchedCount === 0) {
+            return res
+              .status(404)
+              .json({ success: false, message: "User not found" });
+          }
+
+          // 3. Fetch updated data to send back to frontend
+          const updatedUser = await usersCollection.findOne(filter, {
+            projection: { password: 0 }, // Don't send the password back
+          });
+
+          res.status(200).json({
+            success: true,
+            message: "Profile updated successfully",
+            user: updatedUser,
+          });
+        } catch (error) {
+          console.error("Update Profile Error:", error);
+          res
+            .status(500)
+            .json({ success: false, message: "Internal Server Error" });
+        }
+      },
+    );
 
     /*
     -------------------------
