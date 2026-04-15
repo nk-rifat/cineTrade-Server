@@ -575,6 +575,43 @@ async function run() {
 
     /*
     -------------------------
+    POST: All purchase movies by users
+    -------------------------
+    */
+
+    app.post("/movies/by-ids", async (req, res) => {
+      try {
+        const { ids } = req.body;
+
+        // validation
+        if (!ids || !Array.isArray(ids)) {
+          return res.status(400).json({ message: "Invalid ids array" });
+        }
+
+        // convert to ObjectId
+        const objectIds = ids
+          .filter((id) => ObjectId.isValid(id))
+          .map((id) => new ObjectId(id));
+
+        // fetch movies
+        const movies = await movieCollection
+          .find({ _id: { $in: objectIds } })
+          .toArray();
+
+        // keep original order (important)
+        const sortedMovies = ids
+          .map((id) => movies.find((m) => m._id.toString() === id))
+          .filter(Boolean);
+
+        res.status(200).json(sortedMovies);
+      } catch (error) {
+        console.error("Error fetching movies by ids:", error);
+        res.status(500).json({ message: "Server error" });
+      }
+    });
+
+    /*
+    -------------------------
     GET: Profile details
     -------------------------
     */
