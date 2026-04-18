@@ -951,7 +951,7 @@ async function run() {
       async (req, res) => {
         try {
           const idFromURL = req.params.id;
-          const idFromToken = req.decoded?.id; // 
+          const idFromToken = req.decoded?.id; //
 
           // Ensure the person logged in is the same person being updated
           if (idFromURL !== idFromToken) {
@@ -1184,6 +1184,15 @@ async function run() {
           { email: payment.email },
           {
             $addToSet: { purchasedMovies: payment.referenceId },
+          },
+        );
+
+        // INCREASE SOLD COUNT IN MOVIE COLLECTION
+
+        await movieCollection.updateOne(
+          { _id: new ObjectId(payment.referenceId) },
+          {
+            $inc: { sold: 1 },
           },
         );
 
