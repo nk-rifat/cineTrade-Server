@@ -430,7 +430,7 @@ async function run() {
       try {
         const { genre, sort, rating, language, year } = req.query;
 
-        let query = {};
+        let query = { release_status: { $in: ["released", "upcoming"] } };
         let sortOption = {};
 
         if (language) {
