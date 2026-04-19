@@ -535,6 +535,30 @@ async function run() {
 
     /*
     -------------------------
+    GET: Pending Movies for Partner
+    -------------------------
+    */
+
+    app.get("/movies/pending", verifyAccessToken, async (req, res) => {
+      try {
+        const userEmail = req?.decoded?.email;
+
+        const result = await movieCollection
+          .find({
+            email: userEmail,
+            release_status: "pending",
+          })
+          .sort({ created_at: -1 })
+          .toArray();
+
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({ message: "Failed to fetch pending movies" });
+      }
+    });
+
+    /*
+    -------------------------
     GET: Movie Coming Soon API
     -------------------------
     */
