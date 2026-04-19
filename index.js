@@ -479,6 +479,62 @@ async function run() {
 
     /*
     -------------------------
+    POST: Add New Movie
+    -------------------------
+    */
+
+    app.post("/add-movie", verifyAccessToken, async (req, res) => {
+      try {
+        const userEmail = req.decoded?.email;
+
+        const user = await usersCollection.findOne({ email: userEmail });
+        if (!user) {
+          return res.status(404).json({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        const currentYear = new Date().getFullYear();
+        const inputYear = parseInt(req.body.release_year);
+
+        const isAdmin = user.role === "admin";
+
+        let finalStatus = isAdmin
+          ? inputYear > currentYear
+            ? "upcoming"
+            : "released"
+          : "pending";
+
+        const newMovieData = {
+          ...req.body,
+          email: userEmail,
+          added_by: isAdmin ? "Admin" : "Partner",
+          release_status: finalStatus,
+          rating: 0,
+          views: 0,
+          sold: 0,
+          created_at: new Date().toISOString(),
+        };
+
+        const result = await movieCollection.insertOne(newMovieData);
+
+        res.status(201).json({
+          success: true,
+          message: "Movie added successfully",
+          data: result,
+        });
+      } catch (error) {
+        console.error("Error adding movie:", error);
+        res.status(500).json({
+          success: false,
+          message: "Internal Server Error",
+        });
+      }
+    });
+
+    /*
+    -------------------------
     GET: Movie Coming Soon API
     -------------------------
     */
