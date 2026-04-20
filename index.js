@@ -557,6 +557,31 @@ async function run() {
       }
     });
 
+
+    /*
+    -------------------------
+    GET: Uploaded Movies by Partner
+    -------------------------
+    */
+
+    //release_status: { $ne: "pending" },
+
+    app.get("/uploaded-movies", verifyAccessToken, async (req, res) => {
+      try {
+        const email = req?.decoded?.email;
+
+        const result = await movieCollection.find({ email,  }).toArray();
+
+        res.json(result);
+      } catch (error) {
+        console.error("Error fetching partner movies:", error);
+        res.status(500).json({
+          message: "Failed to get partner movies",
+          error: error.message,
+        });
+      }
+    });
+
     /*
     -------------------------
     GET: Movie Coming Soon API
