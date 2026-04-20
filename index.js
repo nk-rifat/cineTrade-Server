@@ -557,7 +557,6 @@ async function run() {
       }
     });
 
-
     /*
     -------------------------
     GET: Uploaded Movies by Partner
@@ -570,7 +569,7 @@ async function run() {
       try {
         const email = req?.decoded?.email;
 
-        const result = await movieCollection.find({ email,  }).toArray();
+        const result = await movieCollection.find({ email }).toArray();
 
         res.json(result);
       } catch (error) {
@@ -961,7 +960,7 @@ async function run() {
 
     app.get("/movies/:id", async (req, res) => {
       try {
-        const movieId = req.params.id;
+        const movieId = req?.params?.id;
 
         if (!ObjectId.isValid(movieId)) {
           return res.status(400).json({ message: "Invalid movie ID" });
@@ -979,6 +978,30 @@ async function run() {
       } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Server error" });
+      }
+    });
+
+    /*
+    -------------------------
+    PATCH: Single Movie Update
+    -------------------------
+    */
+
+    app.patch("/movies/:id", verifyAccessToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updatedData = req.body;
+        const email = req?.decoded?.email;
+
+        const result = await movieCollection.updateOne(
+          { _id: new ObjectId(id), email },
+          { $set: updatedData },
+        );
+
+        res.json(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to update movie" });
       }
     });
 
