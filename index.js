@@ -1129,6 +1129,39 @@ async function run() {
 
     /*
     -------------------------
+    DELETE: Single Movie 
+    -------------------------
+    */
+
+    app.delete("/movies/:id", verifyAccessToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { email, role } = req.decoded;
+
+        let query = { _id: new ObjectId(id) };
+
+        if (role !== "admin") {
+          query.email = email;
+        }
+
+        const result = await movieCollection.deleteOne(query);
+
+        if (result.deletedCount === 0) {
+          return res.status(404).json({
+            message:
+              "Movie not found or you do not have permission to delete this.",
+          });
+        }
+
+        res.json({ success: true, message: "Movie deleted successfully" });
+      } catch (error) {
+        console.error("Delete Error:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    });
+
+    /*
+    -------------------------
     POST: Make Payment Intent API
     -------------------------
     */
