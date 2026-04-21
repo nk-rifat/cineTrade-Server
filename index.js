@@ -479,6 +479,51 @@ async function run() {
 
     /*
     -------------------------
+    GET: All Movies for Admin
+    -------------------------
+    */
+
+    app.get(
+      "/admin/movies",
+      verifyAccessToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const page = parseInt(req.query.page) || 1;
+          const limit = parseInt(req.query.limit) || 10;
+          const addedBy = req.query.addedBy;
+
+          const skip = (page - 1) * limit;
+
+          let query = {};
+
+          // filter by who added movie
+          if (addedBy && addedBy !== "all") {
+            query.added_by = { $regex: `^${addedBy}$`, $options: "i" };
+          }
+
+          const total = await movieCollection.countDocuments(query);
+
+          const movies = await movieCollection
+            .find(query)
+            .skip(skip)
+            .limit(limit)
+            .toArray();
+
+          res.json({
+            movies,
+            total,
+            currentPage: page,
+            totalPages: Math.ceil(total / limit),
+          });
+        } catch (error) {
+          res.status(500).json({ message: "Failed to fetch admin movies" });
+        }
+      },
+    );
+
+    /*
+    -------------------------
     POST: Add New Movie
     -------------------------
     */
