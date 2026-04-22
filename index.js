@@ -1198,26 +1198,35 @@ async function run() {
     app.delete("/movies/:id", verifyAccessToken, async (req, res) => {
       try {
         const id = req.params.id;
-        const { email, role } = req.decoded;
+        const email = req.decoded.email;
 
-        let query = { _id: new ObjectId(id) };
+        const user = await usersCollection.findOne({ email });
+        const role = user?.role;
 
+        const movie = await movieCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!movie) {
+          return res.status(404).json({ message: "Movie not found" });
+        }
+
+        // only restrict non-admin
         if (role !== "admin") {
-          query.email = email;
+          if (movie.email !== email) {
+            return res.status(403).json({
+              message: "Not allowed",
+            });
+          }
         }
 
-        const result = await movieCollection.deleteOne(query);
+        const result = await movieCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
 
-        if (result.deletedCount === 0) {
-          return res.status(404).json({
-            message:
-              "Movie not found or you do not have permission to delete this.",
-          });
-        }
-
-        res.json({ success: true, message: "Movie deleted successfully" });
+        res.json({ success: true, message: "Deleted successfully" });
       } catch (error) {
-        console.error("Delete Error:", error);
+        console.error(error);
         res.status(500).json({ message: "Internal server error" });
       }
     });
