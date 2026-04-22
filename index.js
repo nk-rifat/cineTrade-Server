@@ -709,7 +709,7 @@ async function run() {
       try {
         const result = await movieCollection
           .find({})
-          .sort({ views: -1 })
+          .sort({ views: -1, sold: -1 })
           .limit(10)
           .toArray();
 
