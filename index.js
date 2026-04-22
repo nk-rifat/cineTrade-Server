@@ -524,6 +524,29 @@ async function run() {
 
     /*
     -------------------------
+    GET: All pending movies for Admin
+    -------------------------
+    */
+
+    app.get(
+      "/admin/pending-movies",
+      verifyAccessToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const result = await movieCollection
+            .find({ release_status: "pending" })
+            .toArray();
+
+          res.status(200).json(result);
+        } catch (error) {
+          console.error("Error fetching pending movies:", error);
+        }
+      },
+    );
+
+    /*
+    -------------------------
     POST: Add New Movie
     -------------------------
     */
