@@ -631,13 +631,13 @@ async function run() {
     -------------------------
     */
 
-    //release_status: { $ne: "pending" },
-
     app.get("/uploaded-movies", verifyAccessToken, async (req, res) => {
       try {
         const email = req?.decoded?.email;
 
-        const result = await movieCollection.find({ email }).toArray();
+        const result = await movieCollection
+          .find({ email, release_status: { $ne: "pending" } })
+          .toArray();
 
         res.json(result);
       } catch (error) {
@@ -1432,7 +1432,13 @@ async function run() {
           });
         }
 
-        const result = await paymentsCollection.insertOne(payment);
+        const enrichedPayment = {
+          ...payment,
+          movie_owner_email: movie.email,
+          added_by: movie.added_by,
+        };
+
+        const result = await paymentsCollection.insertOne(enrichedPayment);
 
         // Save purchased movie
         await usersCollection.updateOne(
