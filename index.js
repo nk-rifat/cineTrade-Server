@@ -1038,8 +1038,25 @@ async function run() {
         const updatedData = req.body;
         const email = req?.decoded?.email;
 
+        const user = await usersCollection.findOne({ email });
+        const role = user?.role;
+
+        const movie = await movieCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!movie) {
+          return res.status(404).json({ message: "Movie not found" });
+        }
+
+        if (role !== "admin") {
+          if (movie.email !== email) {
+            return res.status(403).json({ message: "Forbidden" });
+          }
+        }
+
         const result = await movieCollection.updateOne(
-          { _id: new ObjectId(id), email },
+          { _id: new ObjectId(id) },
           { $set: updatedData },
         );
 
