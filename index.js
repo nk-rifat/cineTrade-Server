@@ -818,6 +818,209 @@ async function run() {
 
     /*
     -------------------------
+    GET: Admin Dashboard
+    -------------------------
+    */
+
+    app.get(
+      "/admin/dashboard-summary",
+      verifyAccessToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          // 1. GLOBAL COUNTS (Optimized simultaneous execution)
+          const [totalUsers, totalPartners] = await Promise.all([
+            usersCollection.countDocuments(),
+            usersCollection.countDocuments({ role: "partner" }),
+          ]);
+
+          // 2. TOP PERFORMING MOVIES (Admin Uploads Only)
+
+          const topMovies = await movieCollection
+            .find({ added_by: "Admin" })
+            .sort({ sold: -1 })
+            .limit(5)
+            .toArray();
+
+          // 3. RECENT SALES FEED (Admin Movies & Partner Registration Fees Only)
+
+          const recentTransactions = await paymentsCollection
+            .find({
+              status: "success",
+              $or: [
+                { type: "partner" },
+                { $and: [{ type: "movie" }, { added_by: "Admin" }] },
+              ],
+            })
+            .sort({ created_at: -1, createdAt: -1 })
+            .limit(5)
+            .toArray();
+
+          // 4. FINANCIAL TOTALS (Top Dashboard Cards)
+          const financialStats = await paymentsCollection
+            .aggregate([
+              { $match: { status: "success" } },
+              {
+                $group: {
+                  _id: null,
+                  adminSales: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $eq: ["$type", "movie"] },
+                            { $eq: ["$added_by", "Admin"] },
+                          ],
+                        },
+                        { $toDouble: "$amount" },
+                        0,
+                      ],
+                    },
+                  },
+                  partnerTotalSales: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $eq: ["$type", "movie"] },
+                            { $eq: ["$added_by", "Partner"] },
+                          ],
+                        },
+                        { $toDouble: "$amount" },
+                        0,
+                      ],
+                    },
+                  },
+                  regFees: {
+                    $sum: {
+                      $cond: [
+                        { $eq: ["$type", "partner"] },
+                        { $toDouble: "$amount" },
+                        0,
+                      ],
+                    },
+                  },
+                },
+              },
+            ])
+            .toArray();
+
+          const f = financialStats[0] || {
+            adminSales: 0,
+            partnerTotalSales: 0,
+            regFees: 0,
+          };
+          const partnerProfitCut = f.partnerTotalSales * 0.2;
+          const totalNetEarnings = f.adminSales + partnerProfitCut + f.regFees;
+
+          // 5. MONTHLY NET INCOME ANALYTICS (The Profit Chart)
+
+          const salesRaw = await paymentsCollection
+            .aggregate([
+              { $match: { status: "success" } },
+              {
+                $group: {
+                  _id: {
+                    $month: {
+                      $toDate: { $ifNull: ["$created_at", "$createdAt"] },
+                    },
+                  },
+                  total: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $or: [
+                            { $eq: ["$added_by", "Admin"] },
+                            { $eq: ["$type", "partner"] },
+                          ],
+                        },
+                        { $toDouble: { $ifNull: ["$amount", 0] } }, // 100% share
+                        {
+                          $multiply: [
+                            { $toDouble: { $ifNull: ["$amount", 0] } },
+                            0.2,
+                          ],
+                        }, // 20% share
+                      ],
+                    },
+                  },
+                },
+              },
+              { $sort: { _id: 1 } },
+            ])
+            .toArray();
+
+          // 6. INVENTORY GROWTH ANALYTICS (Content Expansion Chart)
+          const moviesRaw = await movieCollection
+            .aggregate([
+              {
+                $group: {
+                  _id: {
+                    $month: {
+                      $toDate: { $ifNull: ["$created_at", "$createdAt"] },
+                    },
+                  },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { _id: 1 } },
+            ])
+            .toArray();
+
+          // 7. CHART FORMATTER HELPER (Ensures Jan-Dec display)
+          const formatChartData = (raw, isCount = false) => {
+            const months = [
+              "Jan",
+              "Feb",
+              "Mar",
+              "Apr",
+              "May",
+              "Jun",
+              "Jul",
+              "Aug",
+              "Sep",
+              "Oct",
+              "Nov",
+              "Dec",
+            ];
+            return months.map((name, index) => {
+              const found = raw.find((item) => item._id === index + 1);
+              return {
+                month: name,
+                value: found ? (isCount ? found.count : found.total) : 0,
+              };
+            });
+          };
+
+          // 8. FINAL JSON RESPONSE
+          res.json({
+            stats: {
+              totalUsers,
+              totalPartners,
+              adminMovieSales: f.adminSales,
+              partnerProfit: partnerProfitCut,
+              partnerFees: f.regFees,
+              totalEarnings: totalNetEarnings,
+            },
+            analytics: {
+              sales: formatChartData(salesRaw),
+              movies: formatChartData(moviesRaw, true),
+            },
+            topMovies,
+            recentTransactions,
+          });
+        } catch (err) {
+          console.error("Dashboard API Error:", err);
+          res.status(500).json({
+            error: "Failed to generate dashboard data",
+            message: err.message,
+          });
+        }
+      },
+    );
+
+    /*
+    -------------------------
     GET: Partner Dashboard
     -------------------------
     */
