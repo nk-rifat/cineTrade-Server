@@ -871,9 +871,15 @@ async function run() {
             { $match: { movie_owner_email: email, status: "success" } },
             { $addFields: { dateObj: { $toDate: "$createdAt" } } },
             {
+              $addFields: {
+                dateObj: { $toDate: "$createdAt" },
+                numericAmount: { $toDouble: "$amount" },
+              },
+            },
+            {
               $group: {
                 _id: { $dateToString: { format: "%Y-%m", date: "$dateObj" } },
-                earnings: { $sum: "$amount" },
+                earnings: { $sum: { $multiply: ["$numericAmount", 0.8] } },
                 sales: { $sum: 1 },
               },
             },
