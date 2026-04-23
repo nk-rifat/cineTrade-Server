@@ -431,7 +431,7 @@ async function run() {
 
     /*
     -------------------------
-    GET: All users API
+    GET: All users for Admin Dashboard
     -------------------------
     */
 
@@ -515,7 +515,7 @@ async function run() {
     */
 
     app.get(
-      "/admin/movies",
+      "/admin/all-movies",
       verifyAccessToken,
       verifyAdmin,
       async (req, res) => {
@@ -555,7 +555,7 @@ async function run() {
 
     /*
     -------------------------
-    GET: All pending movies for Admin
+    GET: All pending movies for Admin Approval
     -------------------------
     */
 
@@ -582,79 +582,90 @@ async function run() {
     -------------------------
     */
 
-    app.post("/add-movie", verifyAccessToken, async (req, res) => {
-      try {
-        const userEmail = req.decoded?.email;
+    app.post(
+      "/add-movie",
+      verifyAccessToken,
+      verifyAdmin,
+      verifyPartner,
+      async (req, res) => {
+        try {
+          const userEmail = req.decoded?.email;
 
-        const user = await usersCollection.findOne({ email: userEmail });
-        if (!user) {
-          return res.status(404).json({
+          const user = await usersCollection.findOne({ email: userEmail });
+          if (!user) {
+            return res.status(404).json({
+              success: false,
+              message: "User not found",
+            });
+          }
+
+          const currentYear = new Date().getFullYear();
+          const inputYear = parseInt(req.body.release_year);
+
+          const isAdmin = user.role === "admin";
+
+          let finalStatus = isAdmin
+            ? inputYear > currentYear
+              ? "upcoming"
+              : "released"
+            : "pending";
+
+          const newMovieData = {
+            ...req.body,
+            email: userEmail,
+            added_by: isAdmin ? "Admin" : "Partner",
+            release_status: finalStatus,
+            rating: 0,
+            views: 0,
+            sold: 0,
+            created_at: new Date().toISOString(),
+          };
+
+          const result = await movieCollection.insertOne(newMovieData);
+
+          res.status(201).json({
+            success: true,
+            message: "Movie added successfully",
+            data: result,
+          });
+        } catch (error) {
+          console.error("Error adding movie:", error);
+          res.status(500).json({
             success: false,
-            message: "User not found",
+            message: "Internal Server Error",
           });
         }
-
-        const currentYear = new Date().getFullYear();
-        const inputYear = parseInt(req.body.release_year);
-
-        const isAdmin = user.role === "admin";
-
-        let finalStatus = isAdmin
-          ? inputYear > currentYear
-            ? "upcoming"
-            : "released"
-          : "pending";
-
-        const newMovieData = {
-          ...req.body,
-          email: userEmail,
-          added_by: isAdmin ? "Admin" : "Partner",
-          release_status: finalStatus,
-          rating: 0,
-          views: 0,
-          sold: 0,
-          created_at: new Date().toISOString(),
-        };
-
-        const result = await movieCollection.insertOne(newMovieData);
-
-        res.status(201).json({
-          success: true,
-          message: "Movie added successfully",
-          data: result,
-        });
-      } catch (error) {
-        console.error("Error adding movie:", error);
-        res.status(500).json({
-          success: false,
-          message: "Internal Server Error",
-        });
-      }
-    });
+      },
+    );
 
     /*
     -------------------------
-    GET: Pending Movies for Partner
+    GET: Partner's Own Pending Movies
     -------------------------
     */
 
-    app.get("/movies/pending", verifyAccessToken, async (req, res) => {
-      try {
-        const userEmail = req?.decoded?.email;
+    app.get(
+      "/partner/movies/pending",
+      verifyAccessToken,
+      verifyPartner,
+      async (req, res) => {
+        try {
+          const userEmail = req?.decoded?.email;
 
-        const result = await movieCollection
-          .find({
-            email: userEmail,
-            release_status: "pending",
-          })
-          .sort({ created_at: -1 })
-          .toArray();
+          const result = await movieCollection
+            .find({
+              email: userEmail,
+              release_status: "pending",
+            })
+            .sort({ created_at: -1 })
+            .toArray();
 
-        res.json(result);
-      } catch (error) {
-        res.status(500).json({ message: "Failed to fetch pending movies" });
-      }
-    });
+          res.json(result);
+        } catch (error) {
+          res.status(500).json({ message: "Failed to fetch pending movies" });
+        }
+      },
+    );
 
     /*
     -------------------------
@@ -662,23 +673,28 @@ async function run() {
     -------------------------
     */
 
-    app.get("/uploaded-movies", verifyAccessToken, async (req, res) => {
-      try {
-        const email = req?.decoded?.email;
+    app.get(
+      "/partner/uploaded-movies",
+      verifyAccessToken,
+      verifyPartner,
+      async (req, res) => {
+        try {
+          const email = req?.decoded?.email;
 
-        const result = await movieCollection
-          .find({ email, release_status: { $ne: "pending" } })
-          .toArray();
+          const result = await movieCollection
+            .find({ email, release_status: { $ne: "pending" } })
+            .toArray();
 
-        res.json(result);
-      } catch (error) {
-        console.error("Error fetching partner movies:", error);
-        res.status(500).json({
-          message: "Failed to get partner movies",
-          error: error.message,
-        });
-      }
-    });
+          res.json(result);
+        } catch (error) {
+          console.error("Error fetching partner movies:", error);
+          res.status(500).json({
+            message: "Failed to get partner movies",
+            error: error.message,
+          });
+        }
+      },
+    );
 
     /*
     -------------------------
@@ -782,7 +798,7 @@ async function run() {
     -------------------------
     */
 
-    app.post("/movies/by-ids", async (req, res) => {
+    app.post("/movies/purchase/by-ids", verifyAccessToken, async (req, res) => {
       try {
         const { ids } = req.body;
 
@@ -815,7 +831,7 @@ async function run() {
 
     /*
     -------------------------
-    GET: Profile details
+    GET: User Profile details
     -------------------------
     */
 
@@ -849,12 +865,12 @@ async function run() {
 
     /*
     -------------------------
-    GET: Admin Dashboard
+    GET: Admin Dashboard Summary api
     -------------------------
     */
 
     app.get(
-      "/admin/dashboard-summary",
+      "/admin/dashboard",
       verifyAccessToken,
       verifyAdmin,
       async (req, res) => {
@@ -1052,137 +1068,142 @@ async function run() {
 
     /*
     -------------------------
-    GET: Partner Dashboard
+    GET: Partner Dashboard summary api
     -------------------------
     */
 
-    app.get("/partner/dashboard", verifyAccessToken, async (req, res) => {
-      try {
-        const email = req?.decoded?.email;
+    app.get(
+      "/partner/dashboard",
+      verifyAccessToken,
+      verifyPartner,
+      async (req, res) => {
+        try {
+          const email = req?.decoded?.email;
 
-        // 1. Core Movie Stats
-        const movieStats = await movieCollection
-          .aggregate([
-            { $match: { email: email } },
-            {
-              $group: {
-                _id: null,
-                totalMovies: { $sum: 1 },
-                approved: {
-                  $sum: {
-                    $cond: [
-                      { $in: ["$release_status", ["released", "upcoming"]] },
-                      1,
-                      0,
-                    ],
+          // 1. Core Movie Stats
+          const movieStats = await movieCollection
+            .aggregate([
+              { $match: { email: email } },
+              {
+                $group: {
+                  _id: null,
+                  totalMovies: { $sum: 1 },
+                  approved: {
+                    $sum: {
+                      $cond: [
+                        { $in: ["$release_status", ["released", "upcoming"]] },
+                        1,
+                        0,
+                      ],
+                    },
                   },
-                },
-                pending: {
-                  $sum: {
-                    $cond: [{ $eq: ["$release_status", "pending"] }, 1, 0],
+                  pending: {
+                    $sum: {
+                      $cond: [{ $eq: ["$release_status", "pending"] }, 1, 0],
+                    },
                   },
-                },
-                releasedCount: {
-                  $sum: {
-                    $cond: [{ $eq: ["$release_status", "released"] }, 1, 0],
+                  releasedCount: {
+                    $sum: {
+                      $cond: [{ $eq: ["$release_status", "released"] }, 1, 0],
+                    },
                   },
-                },
-                upcomingCount: {
-                  $sum: {
-                    $cond: [{ $eq: ["$release_status", "upcoming"] }, 1, 0],
+                  upcomingCount: {
+                    $sum: {
+                      $cond: [{ $eq: ["$release_status", "upcoming"] }, 1, 0],
+                    },
                   },
+                  views: { $sum: { $ifNull: ["$views", 0] } },
+                  totalSales: { $sum: { $ifNull: ["$sold", 0] } },
                 },
-                views: { $sum: { $ifNull: ["$views", 0] } },
-                totalSales: { $sum: { $ifNull: ["$sold", 0] } },
               },
-            },
-          ])
-          .toArray();
+            ])
+            .toArray();
 
-        // 2. Analytics
-        const paymentAnalytics = await paymentsCollection
-          .aggregate([
-            { $match: { movie_owner_email: email, status: "success" } },
-            { $addFields: { dateObj: { $toDate: "$createdAt" } } },
-            {
-              $addFields: {
-                dateObj: { $toDate: "$createdAt" },
-                numericAmount: { $toDouble: "$amount" },
+          // 2. Analytics
+          const paymentAnalytics = await paymentsCollection
+            .aggregate([
+              { $match: { movie_owner_email: email, status: "success" } },
+              { $addFields: { dateObj: { $toDate: "$createdAt" } } },
+              {
+                $addFields: {
+                  dateObj: { $toDate: "$createdAt" },
+                  numericAmount: { $toDouble: "$amount" },
+                },
               },
-            },
-            {
-              $group: {
-                _id: { $dateToString: { format: "%Y-%m", date: "$dateObj" } },
-                earnings: { $sum: { $multiply: ["$numericAmount", 0.8] } },
-                sales: { $sum: 1 },
+              {
+                $group: {
+                  _id: { $dateToString: { format: "%Y-%m", date: "$dateObj" } },
+                  earnings: { $sum: { $multiply: ["$numericAmount", 0.8] } },
+                  sales: { $sum: 1 },
+                },
               },
+              { $sort: { _id: 1 } },
+            ])
+            .toArray();
+
+          // 3. Top Movies
+          const topMovies = await movieCollection
+            .find({ email })
+            .sort({ sold: -1, views: -1 })
+            .limit(5)
+            .project({ title: 1, sold: 1, views: 1, poster: 1 })
+            .toArray();
+
+          // 4. Recent Transactions
+          const recentTransactions = await paymentsCollection
+            .find({ movie_owner_email: email, status: "success" })
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .toArray();
+
+          const statsResult = movieStats[0] || {
+            totalMovies: 0,
+            approved: 0,
+            pending: 0,
+            releasedCount: 0,
+            upcomingCount: 0,
+            views: 0,
+            totalSales: 0,
+          };
+
+          const totalEarnings = paymentAnalytics.reduce(
+            (sum, item) => sum + (item.earnings || 0),
+            0,
+          );
+
+          res.json({
+            stats: { ...statsResult, earnings: totalEarnings },
+            analytics: {
+              earnings: paymentAnalytics.map((item) => ({
+                month: new Date(item._id + "-01").toLocaleString("default", {
+                  month: "short",
+                }),
+                value: item.earnings,
+              })),
+              sales: paymentAnalytics.map((item) => ({
+                month: new Date(item._id + "-01").toLocaleString("default", {
+                  month: "short",
+                }),
+                value: item.sales,
+              })),
             },
-            { $sort: { _id: 1 } },
-          ])
-          .toArray();
-
-        // 3. Top Movies
-        const topMovies = await movieCollection
-          .find({ email })
-          .sort({ sold: -1, views: -1 })
-          .limit(5)
-          .project({ title: 1, sold: 1, views: 1, poster: 1 })
-          .toArray();
-
-        // 4. Recent Transactions
-        const recentTransactions = await paymentsCollection
-          .find({ movie_owner_email: email, status: "success" })
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .toArray();
-
-        const statsResult = movieStats[0] || {
-          totalMovies: 0,
-          approved: 0,
-          pending: 0,
-          releasedCount: 0,
-          upcomingCount: 0,
-          views: 0,
-          totalSales: 0,
-        };
-
-        const totalEarnings = paymentAnalytics.reduce(
-          (sum, item) => sum + (item.earnings || 0),
-          0,
-        );
-
-        res.json({
-          stats: { ...statsResult, earnings: totalEarnings },
-          analytics: {
-            earnings: paymentAnalytics.map((item) => ({
-              month: new Date(item._id + "-01").toLocaleString("default", {
-                month: "short",
-              }),
-              value: item.earnings,
-            })),
-            sales: paymentAnalytics.map((item) => ({
-              month: new Date(item._id + "-01").toLocaleString("default", {
-                month: "short",
-              }),
-              value: item.sales,
-            })),
-          },
-          topMovies: topMovies || [],
-          recentTransactions: recentTransactions || [],
-        });
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Internal Server Error" });
-      }
-    });
+            topMovies: topMovies || [],
+            recentTransactions: recentTransactions || [],
+          });
+        } catch (error) {
+          console.error(error);
+          res.status(500).json({ message: "Internal Server Error" });
+        }
+      },
+    );
 
     /*
     -------------------------
-    POST: Partner Apply API
+    POST: User Apply for Become Partner API
     -------------------------
     */
 
-    app.post("/partner/apply", verifyAccessToken, async (req, res) => {
+    app.post("/apply/become-partner", verifyAccessToken, async (req, res) => {
       try {
         const { fullName, reason } = req.body;
 
@@ -1233,11 +1254,11 @@ async function run() {
 
     /*
     -------------------------
-    GET: My Application API
+    GET: My Application status API
     -------------------------
     */
 
-    app.get("/partner/my-application", verifyAccessToken, async (req, res) => {
+    app.get("/my-application", verifyAccessToken, async (req, res) => {
       try {
         const userId = req.decoded?.id;
 
@@ -1262,12 +1283,12 @@ async function run() {
 
     /*
     -------------------------
-    GET: All partner application API
+    GET: All partner application list for Admin API
     -------------------------
     */
 
     app.get(
-      "/partner-applications",
+      "/admin/all-partner-applications",
       verifyAccessToken,
       verifyAdmin,
       async (req, res) => {
@@ -1290,11 +1311,11 @@ async function run() {
 
     /*
     -------------------------
-    PATCH: single User admin approved API
+    PATCH:Partner application approve or Reject By Admin
     -------------------------
     */
     app.patch(
-      "/application-update-status/:id",
+      "/admin/application-update-status/:id",
       verifyAccessToken,
       verifyAdmin,
       async (req, res) => {
@@ -1331,7 +1352,7 @@ async function run() {
 
     /*
     -------------------------
-    PATCH: Update single User Status API
+    PATCH: Update single User Status By Admin API
     -------------------------
     */
 
@@ -1415,40 +1436,46 @@ async function run() {
     -------------------------
     */
 
-    app.patch("/movies/:id", verifyAccessToken, async (req, res) => {
-      try {
-        const id = req.params.id;
-        const updatedData = req.body;
-        const email = req?.decoded?.email;
+    app.patch(
+      "/movies/:id",
+      verifyAccessToken,
+      verifyAdmin,
+      verifyPartner,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const updatedData = req.body;
+          const email = req?.decoded?.email;
 
-        const user = await usersCollection.findOne({ email });
-        const role = user?.role;
+          const user = await usersCollection.findOne({ email });
+          const role = user?.role;
 
-        const movie = await movieCollection.findOne({
-          _id: new ObjectId(id),
-        });
+          const movie = await movieCollection.findOne({
+            _id: new ObjectId(id),
+          });
 
-        if (!movie) {
-          return res.status(404).json({ message: "Movie not found" });
-        }
-
-        if (role !== "admin") {
-          if (movie.email !== email) {
-            return res.status(403).json({ message: "Forbidden" });
+          if (!movie) {
+            return res.status(404).json({ message: "Movie not found" });
           }
+
+          if (role !== "admin") {
+            if (movie.email !== email) {
+              return res.status(403).json({ message: "Forbidden" });
+            }
+          }
+
+          const result = await movieCollection.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: updatedData },
+          );
+
+          res.json(result);
+        } catch (error) {
+          console.error(error);
+          res.status(500).json({ message: "Failed to update movie" });
         }
-
-        const result = await movieCollection.updateOne(
-          { _id: new ObjectId(id) },
-          { $set: updatedData },
-        );
-
-        res.json(result);
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Failed to update movie" });
-      }
-    });
+      },
+    );
 
     /*
     -------------------------
@@ -1578,41 +1605,47 @@ async function run() {
     -------------------------
     */
 
-    app.delete("/movies/:id", verifyAccessToken, async (req, res) => {
-      try {
-        const id = req.params.id;
-        const email = req.decoded.email;
+    app.delete(
+      "/movies/:id",
+      verifyAccessToken,
+      verifyAdmin,
+      verifyPartner,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const email = req.decoded.email;
 
-        const user = await usersCollection.findOne({ email });
-        const role = user?.role;
+          const user = await usersCollection.findOne({ email });
+          const role = user?.role;
 
-        const movie = await movieCollection.findOne({
-          _id: new ObjectId(id),
-        });
+          const movie = await movieCollection.findOne({
+            _id: new ObjectId(id),
+          });
 
-        if (!movie) {
-          return res.status(404).json({ message: "Movie not found" });
-        }
-
-        // only restrict non-admin
-        if (role !== "admin") {
-          if (movie.email !== email) {
-            return res.status(403).json({
-              message: "Not allowed",
-            });
+          if (!movie) {
+            return res.status(404).json({ message: "Movie not found" });
           }
+
+          // only restrict non-admin
+          if (role !== "admin") {
+            if (movie.email !== email) {
+              return res.status(403).json({
+                message: "Not allowed",
+              });
+            }
+          }
+
+          const result = await movieCollection.deleteOne({
+            _id: new ObjectId(id),
+          });
+
+          res.json({ success: true, message: "Deleted successfully" });
+        } catch (error) {
+          console.error(error);
+          res.status(500).json({ message: "Internal server error" });
         }
-
-        const result = await movieCollection.deleteOne({
-          _id: new ObjectId(id),
-        });
-
-        res.json({ success: true, message: "Deleted successfully" });
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Internal server error" });
-      }
-    });
+      },
+    );
 
     /*
     -------------------------
