@@ -398,6 +398,37 @@ async function run() {
       }
     };
 
+    const verifyPartner = async (req, res, next) => {
+      try {
+        // 1. Extract email from the decoded token
+        const email = req.decoded?.email;
+
+        if (!email) {
+          return res.status(401).send({ message: "Unauthorized access" });
+        }
+
+        // 2. Fetch the user from the database
+        const user = await usersCollection.findOne({ email });
+
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
+
+        // 3. Verify if the role is 'partner'
+        if (user.role !== "partner") {
+          return res
+            .status(403)
+            .json({ message: "Forbidden: Partner access only" });
+        }
+
+        // 4. Proceed to the next middleware or controller
+        next();
+      } catch (error) {
+        console.error("Error in verifyPartner middleware:", error);
+        res.status(500).json({ message: "Server error" });
+      }
+    };
+
     /*
     -------------------------
     GET: All users API
