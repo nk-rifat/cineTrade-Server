@@ -818,6 +818,126 @@ async function run() {
 
     /*
     -------------------------
+    GET: Partner Dashboard
+    -------------------------
+    */
+
+    app.get("/partner/dashboard", verifyAccessToken, async (req, res) => {
+      try {
+        const email = req?.decoded?.email;
+
+        // 1. Core Movie Stats
+        const movieStats = await movieCollection
+          .aggregate([
+            { $match: { email: email } },
+            {
+              $group: {
+                _id: null,
+                totalMovies: { $sum: 1 },
+                approved: {
+                  $sum: {
+                    $cond: [
+                      { $in: ["$release_status", ["released", "upcoming"]] },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                pending: {
+                  $sum: {
+                    $cond: [{ $eq: ["$release_status", "pending"] }, 1, 0],
+                  },
+                },
+                releasedCount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$release_status", "released"] }, 1, 0],
+                  },
+                },
+                upcomingCount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$release_status", "upcoming"] }, 1, 0],
+                  },
+                },
+                views: { $sum: { $ifNull: ["$views", 0] } },
+                totalSales: { $sum: { $ifNull: ["$sold", 0] } },
+              },
+            },
+          ])
+          .toArray();
+
+        // 2. Analytics
+        const paymentAnalytics = await paymentsCollection
+          .aggregate([
+            { $match: { movie_owner_email: email, status: "success" } },
+            { $addFields: { dateObj: { $toDate: "$createdAt" } } },
+            {
+              $group: {
+                _id: { $dateToString: { format: "%Y-%m", date: "$dateObj" } },
+                earnings: { $sum: "$amount" },
+                sales: { $sum: 1 },
+              },
+            },
+            { $sort: { _id: 1 } },
+          ])
+          .toArray();
+
+        // 3. Top Movies
+        const topMovies = await movieCollection
+          .find({ email })
+          .sort({ sold: -1, views: -1 })
+          .limit(5)
+          .project({ title: 1, sold: 1, views: 1, poster: 1 })
+          .toArray();
+
+        // 4. Recent Transactions
+        const recentTransactions = await paymentsCollection
+          .find({ movie_owner_email: email, status: "success" })
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .toArray();
+
+        const statsResult = movieStats[0] || {
+          totalMovies: 0,
+          approved: 0,
+          pending: 0,
+          releasedCount: 0,
+          upcomingCount: 0,
+          views: 0,
+          totalSales: 0,
+        };
+
+        const totalEarnings = paymentAnalytics.reduce(
+          (sum, item) => sum + (item.earnings || 0),
+          0,
+        );
+
+        res.json({
+          stats: { ...statsResult, earnings: totalEarnings },
+          analytics: {
+            earnings: paymentAnalytics.map((item) => ({
+              month: new Date(item._id + "-01").toLocaleString("default", {
+                month: "short",
+              }),
+              value: item.earnings,
+            })),
+            sales: paymentAnalytics.map((item) => ({
+              month: new Date(item._id + "-01").toLocaleString("default", {
+                month: "short",
+              }),
+              value: item.sales,
+            })),
+          },
+          topMovies: topMovies || [],
+          recentTransactions: recentTransactions || [],
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+
+    /*
+    -------------------------
     POST: Partner Apply API
     -------------------------
     */
