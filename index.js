@@ -398,6 +398,12 @@ async function run() {
       }
     };
 
+    /*
+    -------------------------
+    Verify Partner
+    -------------------------
+    */
+
     const verifyPartner = async (req, res, next) => {
       try {
         // 1. Extract email from the decoded token
@@ -459,27 +465,22 @@ async function run() {
 
     app.get("/movies", async (req, res) => {
       try {
-        const { genre, sort, rating, language, year } = req.query;
+        const { genre, sort, language, year } = req.query;
 
         let query = { release_status: { $in: ["released", "upcoming"] } };
+
         let sortOption = {};
 
         if (language) {
           query.language = { $regex: new RegExp(`^${language}$`, "i") };
         }
 
-        if (year) {
+        if (year && !isNaN(year)) {
           query.release_year = parseInt(year);
         }
 
-        if (rating === "high") {
-          query.rating = { $gte: 7 };
-        } else if (rating === "low") {
-          query.rating = { $lt: 7 };
-        }
-
         if (genre) {
-          query.genres = genre;
+          query.genres = { $in: [genre] };
         }
 
         switch (sort) {
@@ -488,12 +489,6 @@ async function run() {
             break;
           case "price_desc":
             sortOption = { price: -1 };
-            break;
-          case "rating_desc":
-            sortOption = { rating: -1 };
-            break;
-          case "rating_asc":
-            sortOption = { rating: 1 };
             break;
         }
 
