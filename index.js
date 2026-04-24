@@ -582,61 +582,62 @@ async function run() {
     -------------------------
     */
 
-    app.post(
-      "/add-movie",
-      verifyAccessToken,
-      verifyAdmin,
-      verifyPartner,
-      async (req, res) => {
-        try {
-          const userEmail = req.decoded?.email;
+    app.post("/add-movie", verifyAccessToken, async (req, res) => {
+      try {
+        const userEmail = req.decoded?.email;
 
-          const user = await usersCollection.findOne({ email: userEmail });
-          if (!user) {
-            return res.status(404).json({
-              success: false,
-              message: "User not found",
-            });
-          }
-
-          const currentYear = new Date().getFullYear();
-          const inputYear = parseInt(req.body.release_year);
-
-          const isAdmin = user.role === "admin";
-
-          let finalStatus = isAdmin
-            ? inputYear > currentYear
-              ? "upcoming"
-              : "released"
-            : "pending";
-
-          const newMovieData = {
-            ...req.body,
-            email: userEmail,
-            added_by: isAdmin ? "Admin" : "Partner",
-            release_status: finalStatus,
-            rating: 0,
-            views: 0,
-            sold: 0,
-            created_at: new Date().toISOString(),
-          };
-
-          const result = await movieCollection.insertOne(newMovieData);
-
-          res.status(201).json({
-            success: true,
-            message: "Movie added successfully",
-            data: result,
-          });
-        } catch (error) {
-          console.error("Error adding movie:", error);
-          res.status(500).json({
+        const user = await usersCollection.findOne({ email: userEmail });
+        if (!user) {
+          return res.status(404).json({
             success: false,
-            message: "Internal Server Error",
+            message: "User not found",
           });
         }
-      },
-    );
+
+        if (user?.role !== "admin" && user?.role !== "partner") {
+          return res.status(403).json({
+            success: false,
+            message: "Forbidden: You do not have permission to add movies.",
+          });
+        }
+
+        const currentYear = new Date().getFullYear();
+        const inputYear = parseInt(req.body.release_year);
+
+        const isAdmin = user.role === "admin";
+
+        let finalStatus = isAdmin
+          ? inputYear > currentYear
+            ? "upcoming"
+            : "released"
+          : "pending";
+
+        const newMovieData = {
+          ...req.body,
+          email: userEmail,
+          added_by: isAdmin ? "Admin" : "Partner",
+          release_status: finalStatus,
+          rating: 0,
+          views: 0,
+          sold: 0,
+          created_at: new Date().toISOString(),
+        };
+
+        const result = await movieCollection.insertOne(newMovieData);
+
+        res.status(201).json({
+          success: true,
+          message: "Movie added successfully",
+          data: result,
+        });
+      } catch (error) {
+        console.error("Error adding movie:", error);
+        res.status(500).json({
+          success: false,
+          message: "Internal Server Error",
+        });
+      }
+    });
 
     /*
     -------------------------
@@ -1436,46 +1437,47 @@ async function run() {
     -------------------------
     */
 
-    app.patch(
-      "/movies/:id",
-      verifyAccessToken,
-      verifyAdmin,
-      verifyPartner,
-      async (req, res) => {
-        try {
-          const id = req.params.id;
-          const updatedData = req.body;
-          const email = req?.decoded?.email;
+    app.patch("/movies/:id", verifyAccessToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updatedData = req.body;
+        const email = req?.decoded?.email;
 
-          const user = await usersCollection.findOne({ email });
-          const role = user?.role;
+        const user = await usersCollection.findOne({ email });
+        const role = user?.role;
 
-          const movie = await movieCollection.findOne({
-            _id: new ObjectId(id),
+        if (role !== "admin" && role !== "partner") {
+          return res.status(403).json({
+            success: false,
+            message: "Forbidden: You do not have permission to add movies.",
           });
-
-          if (!movie) {
-            return res.status(404).json({ message: "Movie not found" });
-          }
-
-          if (role !== "admin") {
-            if (movie.email !== email) {
-              return res.status(403).json({ message: "Forbidden" });
-            }
-          }
-
-          const result = await movieCollection.updateOne(
-            { _id: new ObjectId(id) },
-            { $set: updatedData },
-          );
-
-          res.json(result);
-        } catch (error) {
-          console.error(error);
-          res.status(500).json({ message: "Failed to update movie" });
         }
-      },
-    );
+
+        const movie = await movieCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!movie) {
+          return res.status(404).json({ message: "Movie not found" });
+        }
+
+        if (role !== "admin") {
+          if (movie.email !== email) {
+            return res.status(403).json({ message: "Forbidden" });
+          }
+        }
+
+        const result = await movieCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updatedData },
+        );
+
+        res.json(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to update movie" });
+      }
+    });
 
     /*
     -------------------------
@@ -1608,8 +1610,7 @@ async function run() {
     app.delete(
       "/movies/:id",
       verifyAccessToken,
-      verifyAdmin,
-      verifyPartner,
+
       async (req, res) => {
         try {
           const id = req.params.id;
@@ -1617,6 +1618,14 @@ async function run() {
 
           const user = await usersCollection.findOne({ email });
           const role = user?.role;
+
+          if (role !== "admin" && role !== "partner") {
+            return res.status(403).json({
+              success: false,
+              message:
+                "Forbidden: You do not have permission to delete movies.",
+            });
+          }
 
           const movie = await movieCollection.findOne({
             _id: new ObjectId(id),
