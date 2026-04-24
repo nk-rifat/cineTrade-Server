@@ -1212,6 +1212,17 @@ async function run() {
         const userId = req.decoded?.id;
         const email = req.decoded?.email;
 
+        const user = await usersCollection.findOne({
+          _id: new ObjectId(userId),
+        });
+
+        if (user.role === "admin") {
+          return res.status(403).json({
+            message:
+              "Access Denied: Admins cannot submit partner applications.",
+          });
+        }
+
         if (!userId || !email) {
           return res.status(401).json({ message: "Unauthorized" });
         }
