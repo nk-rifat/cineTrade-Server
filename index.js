@@ -459,52 +459,6 @@ async function run() {
 
     /*
     -------------------------
-    GET: All Movies by Genres API
-    -------------------------
-    */
-
-    app.get("/movies", async (req, res) => {
-      try {
-        const { genre, sort, language, year } = req.query;
-
-        let query = { release_status: { $in: ["released", "upcoming"] } };
-
-        let sortOption = {};
-
-        if (language) {
-          query.language = { $regex: new RegExp(`^${language}$`, "i") };
-        }
-
-        if (year && !isNaN(year)) {
-          query.release_year = parseInt(year);
-        }
-
-        if (genre) {
-          query.genres = { $in: [genre] };
-        }
-
-        switch (sort) {
-          case "price_asc":
-            sortOption = { price: 1 };
-            break;
-          case "price_desc":
-            sortOption = { price: -1 };
-            break;
-        }
-
-        const result = await movieCollection
-          .find(query)
-          .sort(sortOption)
-          .toArray();
-
-        res.json(result);
-      } catch (error) {
-        res.status(500).json({ message: "Failed to fetch movies" });
-      }
-    });
-
-    /*
-    -------------------------
     GET: All Movies for Admin
     -------------------------
     */
@@ -1606,6 +1560,38 @@ async function run() {
         }
       },
     );
+
+    /*
+    -------------------------
+    GET: Related Movies
+    -------------------------
+    */
+
+    app.get("/movies/related/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const currentMovie = await movieCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!currentMovie) {
+          return res.status(404).send({ message: "Movie not found" });
+        }
+
+        const relatedMovies = await movieCollection
+          .find({
+            _id: { $ne: new ObjectId(id) },
+            genres: { $in: currentMovie.genres || [] },
+          })
+          .limit(4)
+          .toArray();
+
+        res.json(relatedMovies);
+      } catch (error) {
+        res.status(500).json({ message: "Server error" });
+      }
+    });
 
     /*
     -------------------------
