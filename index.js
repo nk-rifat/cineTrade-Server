@@ -459,6 +459,52 @@ async function run() {
 
     /*
     -------------------------
+    GET: All Movies by Genres API
+    -------------------------
+    */
+
+    app.get("/movies", async (req, res) => {
+      try {
+        const { genre, sort, language, year } = req.query;
+
+        let query = { release_status: { $in: ["released", "upcoming"] } };
+
+        let sortOption = {};
+
+        if (language) {
+          query.language = { $regex: new RegExp(`^${language}$`, "i") };
+        }
+
+        if (year) {
+          query.release_year = parseInt(year);
+        }
+
+        if (genre) {
+          query.genres = { $in: [genre] };
+        }
+
+        switch (sort) {
+          case "price_asc":
+            sortOption = { price: 1 };
+            break;
+          case "price_desc":
+            sortOption = { price: -1 };
+            break;
+        }
+
+        const result = await movieCollection
+          .find(query)
+          .sort(sortOption)
+          .toArray();
+
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({ message: "Failed to fetch movies" });
+      }
+    });
+
+    /*
+    -------------------------
     GET: All Movies for Admin
     -------------------------
     */
