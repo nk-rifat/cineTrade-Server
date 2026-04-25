@@ -505,6 +505,46 @@ async function run() {
 
     /*
     -------------------------
+    GET: Search Result
+    -------------------------
+    */
+
+    app.get("/search", async (req, res) => {
+      try {
+        let { title } = req.query;
+
+        if (!title) {
+          return res.status(200).json([]);
+        }
+
+        title = title.trim();
+
+        if (title.length < 2) {
+          return res.status(200).json([]);
+        }
+
+        const results = await movieCollection
+          .find({
+            title: { $regex: title, $options: "i" },
+          })
+          .project({
+            _id: 1,
+            title: 1,
+            poster: 1,
+            year: 1,
+          })
+          .limit(6)
+          .toArray();
+
+        return res.status(200).json(results);
+      } catch (error) {
+        console.error("Search Error:", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+
+    /*
+    -------------------------
     GET: All Movies for Admin
     -------------------------
     */
