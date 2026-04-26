@@ -766,6 +766,11 @@ async function run() {
       try {
         const uniqueGenres = await movieCollection
           .aggregate([
+            {
+              $match: {
+                release_status: { $ne: "pending" },
+              },
+            },
             { $unwind: "$genres" }, //flatten the genres array
             { $group: { _id: "$genres" } }, // group by each genre
             { $sort: { _id: 1 } }, // sort alphabetically
