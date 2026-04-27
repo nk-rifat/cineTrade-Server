@@ -465,6 +465,10 @@ async function run() {
 
     app.get("/movies", async (req, res) => {
       try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
         const { genre, sort, language, year } = req.query;
 
         let query = { release_status: { $in: ["released", "upcoming"] } };
@@ -490,14 +494,24 @@ async function run() {
           case "price_desc":
             sortOption = { price: -1 };
             break;
+          default:
+            sortOption = { _id: -1 };
         }
+        const totalCount = await movieCollection.countDocuments(query);
 
-        const result = await movieCollection
+        const movies = await movieCollection
           .find(query)
           .sort(sortOption)
+          .skip(skip)
+          .limit(limit)
           .toArray();
 
-        res.json(result);
+        res.json({
+          movies,
+          totalCount,
+          totalPages: Math.ceil(totalCount / limit),
+          currentPage: page,
+        });
       } catch (error) {
         res.status(500).json({ message: "Failed to fetch movies" });
       }
