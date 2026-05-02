@@ -185,8 +185,8 @@ async function run() {
 
         res.cookie("refreshToken", refreshToken, {
           httpOnly: true,
-          secure: false,
-          sameSite: "Lax",
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
@@ -260,8 +260,8 @@ async function run() {
         // 5. Set the cookie
         res.cookie("refreshToken", newRefreshToken, {
           httpOnly: true,
-          secure: false,
-          sameSite: "Lax",
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
@@ -309,8 +309,8 @@ async function run() {
         // 2. Clear the cookie from the browser
         res.clearCookie("refreshToken", {
           httpOnly: true,
-          secure: false,
-          sameSite: "Lax",
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         });
 
         res.status(200).json({ message: "Logged out successfully" });
@@ -441,7 +441,7 @@ async function run() {
     -------------------------
     */
 
-    app.get("/users", verifyAccessToken, verifyAdmin, async (req, res) => {
+    app.get("/admin/users", verifyAccessToken, verifyAdmin, async (req, res) => {
       try {
         const users = await usersCollection.find().toArray();
 
