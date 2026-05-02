@@ -24,7 +24,7 @@ app.use(helmet());
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173", "https://cine-trade.netlify.app/"],
     credentials: true,
   }),
 );
@@ -441,21 +441,26 @@ async function run() {
     -------------------------
     */
 
-    app.get("/admin/users", verifyAccessToken, verifyAdmin, async (req, res) => {
-      try {
-        const users = await usersCollection.find().toArray();
+    app.get(
+      "/admin/users",
+      verifyAccessToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const users = await usersCollection.find().toArray();
 
-        res.status(200).json({
-          success: true,
-          data: users,
-        });
-      } catch (error) {
-        res.status(500).json({
-          success: false,
-          message: "Failed to fetch users",
-        });
-      }
-    });
+          res.status(200).json({
+            success: true,
+            data: users,
+          });
+        } catch (error) {
+          res.status(500).json({
+            success: false,
+            message: "Failed to fetch users",
+          });
+        }
+      },
+    );
 
     /*
     -------------------------
